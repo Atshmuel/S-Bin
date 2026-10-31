@@ -140,6 +140,16 @@ uint32_t processInstruction(const DeviceInstruction& instruction) {
 }
 }
 
+// Only asks the server for the leaves' commands (the reply fills the list the
+// mesh task hands out), without running this gateway's own: they wait for
+// processPendingInstructions(), after the readings went up.
+void refreshLeafCommands() {
+    constexpr unsigned long LEAF_COMMANDS_TIMEOUT_MS = 3000UL;
+    if (deviceKey.length() > 0) {
+        requestInstructionCheck(LEAF_COMMANDS_TIMEOUT_MS);
+    }
+}
+
 void processPendingInstructions(unsigned long timeoutMs) {
     unsigned long deadline = millis() + timeoutMs;
     bool extendedAwakeWindow = false;

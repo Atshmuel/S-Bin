@@ -54,9 +54,9 @@ constexpr uint32_t USB_LOG_RECONNECT_WAIT_MS = 3000;
 
 // This firmware's version, reported in every diagnostics block (semver; bump
 // it by hand for every flash).
-constexpr char FIRMWARE_VERSION[] = "2.3.2";
+constexpr char FIRMWARE_VERSION[] = "2.3.3";
 // The same as numbers, for a leaf's diagnostics (keep the two in step).
-constexpr uint8_t FIRMWARE_VERSION_NUMBERS[3] = {2, 3, 2};
+constexpr uint8_t FIRMWARE_VERSION_NUMBERS[3] = {2, 3, 3};
 
 // The S-Bin servers (2i): registration over HTTPS, reports over MQTT with TLS
 // on the private broker, both checked against SBIN_CA_FILE in the modem.
@@ -254,6 +254,7 @@ enum RelayUploadResult {
 void beginMeshWindow();
 void endMeshWindow();
 void uploadRelayedReadings();
+bool leafResultsUploaded();
 void setLeafInstructions(const LeafInstruction* instructions, uint8_t count);
 RelayUploadResult publishRelayRecord(const RelayRecord& record, unsigned long timeoutMs);
 bool synchronizeClockFromNetwork(unsigned long timeoutMs);
@@ -335,4 +336,5 @@ bool publishTelemetry(const DeviceReading& reading);
 bool requestInstructionCheck(unsigned long timeoutMs);
 bool publishInstructionResult(const String& instructionId, const String& status, const String& result);
 void processPendingInstructions(unsigned long timeoutMs);
+void refreshLeafCommands();
 bool updateGpsLocation();

@@ -58,6 +58,11 @@ constexpr uint32_t FIRST_RESIDUAL_PPM = 15000;
 // covering 5,000 ppm.
 constexpr uint32_t MIN_RESIDUAL_PPM = 2500;
 constexpr uint32_t LISTEN_SLACK_SECONDS = 5;
+// A gateway may hand over a command after the ACK of the reading, within its
+// window (it asks the server once its own report is done). Waiting for it keeps
+// the radio on for the rest of the window, so a leaf does it only when its
+// slots are this far apart: a command otherwise waits one cycle, which is short.
+constexpr uint32_t LATE_COMMAND_MIN_SLOT_GAP_SECONDS = 3UL * 60UL * 60UL;
 // A wake further than twice the guard plus this before the slot is not that
 // slot's wake: the clock reads the planned wake, a guard before the slot.
 constexpr uint32_t OFF_SLOT_MARGIN_SECONDS = 60;
@@ -114,6 +119,12 @@ MeshRadio radio;
 MeshAuth meshAuth;
 uint32_t windowNonce = 0;
 uint8_t gatewayMac[MAC_LENGTH] = {};
+// The gateway's window: when it closes (millis), how far apart the slots are,
+// and the last reading it ACKed, with whether that ACK already held a command.
+uint32_t windowEndAtMs = 0;
+uint32_t slotGapSeconds = 0;
+uint32_t lastDeliveredMessageId = 0;
+bool lastAckHadCommand = false;
 
 bool clockValid() {
     return isValidEpoch(time(nullptr));
@@ -264,6 +275,8 @@ void applyBeacon(const BeaconPacket& beacon, const ReceivedFrame& frame, bool at
         }
     }
     nextWakeEpoch = advertisedWake;
+    slotGapSeconds = advertisedWake > 0 ? static_cast<uint32_t>(wakeAheadSeconds) : 0;
+    windowEndAtMs = frame.receivedAtMs + beacon.meshWindowSeconds * 1000UL;
     meshWindowSeconds = beacon.meshWindowSeconds;
     lastBeaconRssi = frame.rssi;
     missedBeforeBeacon = missedCycles;
@@ -341,6 +354,8 @@ bool deliverReading(const DataPacket& reading, AckPacket& ack) {
                 continue;
             }
             ack = *received;
+            lastDeliveredMessageId = reading.header.messageId;
+            lastAckHadCommand = received->instructionType != INSTRUCTION_NONE;
             Serial.printf("✅ Reading %08lX acknowledged (status %u, level %u%%, taken %lu s ago)%s.\n",
                           static_cast<unsigned long>(reading.header.messageId), ack.status,
                           reading.level, static_cast<unsigned long>(reading.ageSeconds),
@@ -354,6 +369,8 @@ bool deliverReading(const DataPacket& reading, AckPacket& ack) {
 }
 
 void sendPendingReadings() {
+    lastAckHadCommand = false;
+    lastDeliveredMessageId = 0;
     while (pendingCount > 0) {
         PendingReading& pending = pendingReadings[0];
         pending.packet.ageSeconds =
@@ -369,6 +386,31 @@ void sendPendingReadings() {
     }
     if (pendingCount > 0) {
         Serial.printf("📦 %u reading(s) kept for the next cycle.\n", pendingCount);
+    }
+}
+
+// The gateway's server answer can come after the ACK of the reading: listens
+// to the end of its window for a second ACK for that reading with a command,
+// runs it and sends the result if the window is still open (else next cycle).
+void waitForLateCommand() {
+    if (pendingCount > 0 || lastAckHadCommand || lastDeliveredMessageId == 0 ||
+        slotGapSeconds < LATE_COMMAND_MIN_SLOT_GAP_SECONDS) {
+        return;
+    }
+    ReceivedFrame frame;
+    while (static_cast<int32_t>(windowEndAtMs - millis()) > 0) {
+        if (!radio.receive(frame, 100)) {
+            continue;
+        }
+        const AckPacket* late = frame.as<AckPacket>(PACKET_ACK);
+        if (late == nullptr || late->ackedMessageId != lastDeliveredMessageId ||
+            !macEquals(late->ackedOrigin, radio.macAddress()) || late->instructionType == INSTRUCTION_NONE) {
+            continue;
+        }
+        Serial.printf("📬 A command came after the reading's ACK (type %u).\n", late->instructionType);
+        runInstruction(*late);
+        sendPendingReadings();
+        return;
     }
 }
 
@@ -484,6 +526,7 @@ LeafExchange runLeafExchange(const LeafConfig& leafConfig, uint32_t listenMs) {
     if (waitForBeacon(listenMs, false)) {
         result.heardBeacon = true;
         sendPendingReadings();
+        waitForLateCommand();
         result.delivered = pendingCount == 0;
         result.nextWakeEpoch = nextWakeEpoch;
     } else {
@@ -546,6 +589,7 @@ void runLeafCycle(const LeafConfig& leafConfig) {
     }
 
     sendPendingReadings();
+    waitForLateCommand();
     if (config->hooks.afterDelivery != nullptr) {
         config->hooks.afterDelivery();
     }

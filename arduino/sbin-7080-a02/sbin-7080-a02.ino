@@ -223,6 +223,11 @@ void loop() {
     if (pmuPowerSources.length() > 0) {
         Serial.println(pmuPowerSources);
     }
+    // The window is still open, and a leaf that reported at its start was ACKed
+    // before the server could be asked: its commands go out now, in a second ACK.
+    if (mqttReady && meshWindowStartedThisCycle()) {
+        refreshLeafCommands();
+    }
     if (mqttReady) {
         uploadRelayedReadings();
     }
@@ -232,6 +237,11 @@ void loop() {
     }
     restartIfMeshKeyIsNew(meshWindowStartedThisCycle());
     endMeshWindow();
+    // A command a leaf ran in this window is finished on the server now: the
+    // held list must not hand it over again, or hold a newer one behind it.
+    if (mqttReady && leafResultsUploaded()) {
+        refreshLeafCommands();
+    }
     becomeLeafIfAsked();
     enterDeepSleepUntilNextReport();
 }

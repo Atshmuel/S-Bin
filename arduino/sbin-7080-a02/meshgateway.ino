@@ -27,6 +27,12 @@ constexpr int64_t SLOT_MATCH_SECONDS = 600;
 // server's schedule reply, at most this long: the stored wake time may be from
 // an old schedule, and a leaf follows the first beacon it hears.
 constexpr uint32_t MAX_BEACON_HOLD_MS = 30000;
+// A command that reaches the gateway after a leaf's reading was ACKed (the
+// instruction check runs once the report is done) is sent to the leaf in a
+// second ACK, repeated this often, this many times, while the window is open.
+constexpr uint8_t MAX_HEARD_LEAVES = 8;
+constexpr uint8_t MAX_LATE_ACKS = 3;
+constexpr uint32_t LATE_ACK_INTERVAL_MS = 1000;
 
 MeshRadio meshRadio;
 // The organization's key and this window's nonce (2m): every beacon and ACK
@@ -42,8 +48,23 @@ volatile uint32_t meshWindowEndMs = 0;
 uint64_t meshWindowSlotEpoch = 0;
 bool beaconsHeld = false;
 uint32_t beaconHoldAckCount = 0;
+// The leaves heard in this window, by their latest reading. Only the mesh
+// task touches them, and the window opening resets them before it starts.
+struct HeardLeaf {
+    uint8_t mac[MAC_LENGTH];
+    uint32_t messageId;
+    uint8_t keyId;
+    bool answered;  // its ACK carried a command, or none is owed
+    uint8_t lateAcks;
+    uint32_t lastLateAckMs;
+};
+HeardLeaf heardLeaves[MAX_HEARD_LEAVES];
+uint8_t heardLeafCount = 0;
 // Relay upload time used this cycle, against RELAY_UPLOAD_BUDGET_MS.
 unsigned long relayUploadSpentMs = 0;
+// A leaf's command result went up this cycle: the server has finished that
+// command, so the held list is out of date (see leafResultsUploaded()).
+bool leafResultUploaded = false;
 }
 
 RTC_DATA_ATTR RelayRecord relayQueue[RELAY_QUEUE_SIZE];
@@ -81,6 +102,33 @@ void attachLeafInstruction(AckPacket& ack, const uint8_t leafMac[MAC_LENGTH]) {
         }
     }
     xSemaphoreGive(relayQueueMutex);
+}
+
+void rememberHeardLeaf(const uint8_t mac[MAC_LENGTH], uint32_t messageId, uint8_t keyId, bool carriedCommand) {
+    for (uint8_t i = 0; i < heardLeafCount; i++) {
+        HeardLeaf& leaf = heardLeaves[i];
+        if (!macEquals(leaf.mac, mac)) {
+            continue;
+        }
+        if (leaf.messageId != messageId) {  // a newer reading, e.g. the result of the command
+            leaf.messageId = messageId;
+            leaf.keyId = keyId;
+            leaf.lateAcks = 0;
+            leaf.answered = carriedCommand;
+        } else {
+            leaf.answered = leaf.answered || carriedCommand;
+        }
+        return;
+    }
+    if (heardLeafCount < MAX_HEARD_LEAVES) {
+        HeardLeaf& leaf = heardLeaves[heardLeafCount++];
+        memcpy(leaf.mac, mac, MAC_LENGTH);
+        leaf.messageId = messageId;
+        leaf.keyId = keyId;
+        leaf.answered = carriedCommand;
+        leaf.lateAcks = 0;
+        leaf.lastLateAckMs = 0;
+    }
 }
 
 bool relayQueueContains(const uint8_t origin[MAC_LENGTH], uint32_t messageId) {
@@ -198,6 +246,10 @@ void handleMeshFrame(const ReceivedFrame& frame) {
     memcpy(ackFrame, &ack, sizeof(ack));
     const size_t ackLength = meshAuth.signAck(ackFrame, sizeof(ack), data->header.keyId);
     const bool acked = ackLength > 0 && meshRadio.sendTo(frame.sender, ackFrame, ackLength);
+    // Only a leaf heard directly can be answered again.
+    if (macEquals(origin, frame.sender)) {
+        rememberHeardLeaf(origin, messageId, data->header.keyId, ack.instructionType != INSTRUCTION_NONE);
+    }
 
     char macText[18];
     formatMac(origin, macText);
@@ -208,6 +260,40 @@ void handleMeshFrame(const ReceivedFrame& frame) {
                   data->resultStatus != RESULT_NONE ? ", with a command result" : "",
                   ack.instructionType != INSTRUCTION_NONE ? "; handed it a command" : "",
                   acked ? "" : "; ACK not confirmed");
+}
+
+// A command that arrived after a heard leaf's reading was ACKed goes to it in
+// a second ACK for that reading; the leaf listens until the window closes.
+void sendLateCommands() {
+    if (leafInstructionCount == 0) {
+        return;
+    }
+    for (uint8_t i = 0; i < heardLeafCount; i++) {
+        HeardLeaf& leaf = heardLeaves[i];
+        if (leaf.answered || leaf.lateAcks >= MAX_LATE_ACKS ||
+            (leaf.lateAcks > 0 && millis() - leaf.lastLateAckMs < LATE_ACK_INTERVAL_MS)) {
+            continue;
+        }
+        AckPacket ack = {};
+        meshRadio.initHeader(ack.header, PACKET_ACK);
+        memcpy(ack.ackedOrigin, leaf.mac, MAC_LENGTH);
+        ack.ackedMessageId = leaf.messageId;
+        ack.status = ACK_STORED;
+        attachLeafInstruction(ack, leaf.mac);
+        if (ack.instructionType == INSTRUCTION_NONE) {
+            continue;
+        }
+        uint8_t ackFrame[sizeof(AckPacket) + TAG_LENGTH];
+        memcpy(ackFrame, &ack, sizeof(ack));
+        const size_t ackLength = meshAuth.signAck(ackFrame, sizeof(ack), leaf.keyId);
+        const bool sent = ackLength > 0 && meshRadio.sendTo(leaf.mac, ackFrame, ackLength);
+        leaf.lateAcks++;
+        leaf.lastLateAckMs = millis();
+        char macText[18];
+        formatMac(leaf.mac, macText);
+        Serial.printf("📬 Handed leaf %s a command after its reading (attempt %u)%s.\n", macText,
+                      leaf.lateAcks, sent ? "" : "; ACK not confirmed");
+    }
 }
 
 void meshGatewayTask(void*) {
@@ -236,6 +322,7 @@ void meshGatewayTask(void*) {
         if (meshRadio.receive(frame, 50)) {
             handleMeshFrame(frame);
         }
+        sendLateCommands();
     }
     meshRadio.end();
     Serial.printf("📡 Mesh window closed; %u leaf reading(s) waiting for upload.\n", relayQueueCount);
@@ -291,6 +378,7 @@ void beginMeshWindow() {
     meshAuth.startWindow(MeshRadio::newMessageId());
     meshAuth.resetCounts();
     clearMeshKeyRestartFlag();
+    heardLeafCount = 0;
 
     const int64_t now = static_cast<int64_t>(time(nullptr));
     meshWindowSlotEpoch =
@@ -377,9 +465,14 @@ void uploadRelayedReadings() {
             continue;
         }
         silentReplies = 0;
+        leafResultUploaded = leafResultUploaded || record.data.resultStatus != RESULT_NONE;
         removeRelayRecord(record.data.header.origin, record.data.header.messageId);
     }
     relayUploadSpentMs += millis() - startedAt;
+}
+
+bool leafResultsUploaded() {
+    return leafResultUploaded;
 }
 
 // Replaces the leaf commands with the server's latest list (from the

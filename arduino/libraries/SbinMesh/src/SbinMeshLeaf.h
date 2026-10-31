@@ -7,8 +7,9 @@
 
 // A mesh leaf's whole wake, shared by every leaf firmware: it wakes on the
 // schedule it learned from a gateway's beacons (or listens for one, a cold
-// join), sends its queued readings, runs the commands the ACKs carry and
-// deep-sleeps until the next slot. The clock, the sleep-clock drift, the
+// join), sends its queued readings, runs the commands the ACKs carry (also one
+// that follows the reading's ACK within the gateway's window) and deep-sleeps
+// until the next slot. The clock, the sleep-clock drift, the
 // guard and the queue live here; a board only measures, through its hooks.
 //
 // The state that survives deep sleep is in RTC memory and is lost on power
