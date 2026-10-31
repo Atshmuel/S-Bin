@@ -15,6 +15,7 @@ String commandTopic;
 String instructionCheckTopic;
 String logTopic;
 String relayTopic;
+String joinTopic;
 unsigned long lastMqttAttemptAt = 0;
 
 // The relay upload currently waiting for the server's relay_result.
@@ -22,6 +23,12 @@ String waitingRelayLeafMac;
 uint32_t waitingRelayMessageId = 0;
 uint32_t relayResultCounter = 0;
 bool relayResultAccepted = false;
+
+// The JOIN currently waiting for the server's join_result, and what it said.
+String waitingJoinLeafMac;
+String waitingJoinNonce;
+uint32_t joinResultCounter = 0;
+sbinmesh::JoinReplyPacket joinResult = {};
 }
 
 // Services MQTT (delivering replies to mqttCallback) for waitMs.
@@ -50,6 +57,7 @@ void setupMqtt() {
     instructionCheckTopic = "bins/" + DeviceMac + "/update/instructions";
     logTopic = "bins/" + DeviceMac + "/update/log";
     relayTopic = "bins/" + DeviceMac + "/update/relay";
+    joinTopic = "bins/" + DeviceMac + "/update/join";
 
     gsmClient.setCertificate(SBIN_CA_FILE);
     mqttClient.setServer(SBIN_SERVER_HOST, MQTT_PORT);
@@ -349,6 +357,59 @@ RelayUploadResult publishRelayRecord(const RelayRecord& record, unsigned long ti
     return relayResultAccepted ? RELAY_ACCEPTED : RELAY_REJECTED;
 }
 
+// Passes a leaf's JOIN to the server and waits for its join_result (the leaf's
+// keys sealed under its join code, or a refusal), returned as the reply packet
+// to hand to the leaf, apart from the header.
+RelayUploadResult publishJoinRequest(const sbinmesh::JoinPacket& join, sbinmesh::JoinReplyPacket& reply,
+                                     unsigned long timeoutMs) {
+    if (!mqttClient.connected() || deviceKey.length() == 0) {
+        return RELAY_NO_REPLY;
+    }
+    char leafMac[18];
+    sbinmesh::formatMac(join.header.origin, leafMac);
+    char orgId[sbinmesh::ORG_ID_LENGTH * 2 + 1];
+    char codeId[sbinmesh::JOIN_CODE_ID_LENGTH * 2 + 1];
+    char nonce[sbinmesh::JOIN_NONCE_LENGTH * 2 + 1];
+    char proof[sbinmesh::JOIN_PROOF_LENGTH * 2 + 1];
+    auto hex = [](const uint8_t* bytes, size_t length, char* out) {
+        for (size_t i = 0; i < length; i++) {
+            snprintf(out + i * 2, 3, "%02x", bytes[i]);
+        }
+    };
+    hex(join.orgId, sizeof(join.orgId), orgId);
+    hex(join.codeId, sizeof(join.codeId), codeId);
+    hex(join.nonce, sizeof(join.nonce), nonce);
+    hex(join.proof, sizeof(join.proof), proof);
+
+    StaticJsonDocument<512> doc;
+    doc["deviceKey"] = deviceKey;
+    doc["leafMac"] = leafMac;
+    doc["orgId"] = orgId;
+    doc["codeId"] = codeId;
+    doc["nonce"] = nonce;
+    doc["proof"] = proof;
+    char payload[512];
+    const size_t payloadLength = serializeJson(doc, payload, sizeof(payload));
+    if (payloadLength == 0 || payloadLength >= sizeof(payload) || !mqttPublish(joinTopic.c_str(), payload)) {
+        Serial.printf("❌ Could not publish the JOIN of %s.\n", leafMac);
+        return RELAY_NO_REPLY;
+    }
+
+    waitingJoinLeafMac = leafMac;
+    waitingJoinNonce = nonce;
+    const uint32_t previousResultCount = joinResultCounter;
+    const bool replied = waitForMqttReply(joinResultCounter, previousResultCount, timeoutMs);
+    waitingJoinLeafMac = "";
+    waitingJoinNonce = "";
+    if (!replied) {
+        return RELAY_NO_REPLY;
+    }
+    reply = joinResult;
+    Serial.printf("%s the JOIN of %s.\n",
+                  reply.status == sbinmesh::JOIN_ACCEPTED ? "✅ Server accepted" : "⚠️ Server refused", leafMac);
+    return reply.status == sbinmesh::JOIN_ACCEPTED ? RELAY_ACCEPTED : RELAY_REJECTED;
+}
+
 bool publishTelemetry(const DeviceReading& reading) {
     if (!mqttClient.connected() || !hasGpsFix || deviceKey.length() == 0) {
         return false;
@@ -539,6 +600,26 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
             doc["instructionId"].is<const char*>() &&
             waitingInstructionResultId == doc["instructionId"].as<String>()) {
             instructionResultAckCounter++;
+        }
+        if (doc["status"] == "join_result" &&
+            doc["leafMac"].is<const char*>() &&
+            doc["nonce"].is<const char*>() &&
+            waitingJoinLeafMac.equalsIgnoreCase(doc["leafMac"].as<const char*>()) &&
+            waitingJoinNonce.equalsIgnoreCase(doc["nonce"].as<const char*>())) {
+            joinResult = {};
+            parseHexBytes(doc["nonce"].as<const char*>(), joinResult.nonce, sbinmesh::JOIN_NONCE_LENGTH, 0);
+            parseHexBytes(doc["leafMac"].as<const char*>(), joinResult.leafMac, sbinmesh::MAC_LENGTH, ':');
+            joinResult.status = sbinmesh::JOIN_REFUSED;
+            if (doc["accepted"] == true && doc["iv"].is<const char*>() && doc["ciphertext"].is<const char*>() &&
+                doc["tag"].is<const char*>() &&
+                parseHexBytes(doc["iv"].as<const char*>(), joinResult.iv, sbinmesh::JOIN_IV_LENGTH, 0) &&
+                parseHexBytes(doc["ciphertext"].as<const char*>(), joinResult.sealed, sbinmesh::JOIN_SEALED_LENGTH, 0) &&
+                parseHexBytes(doc["tag"].as<const char*>(), joinResult.tag, sbinmesh::JOIN_TAG_LENGTH, 0)) {
+                joinResult.status = sbinmesh::JOIN_ACCEPTED;
+            } else if (doc["reason"].is<const char*>()) {
+                Serial.printf("⚠️ JOIN refused by the server: %s.\n", doc["reason"].as<const char*>());
+            }
+            joinResultCounter++;
         }
         if (doc["status"] == "relay_result" &&
             doc["leafMac"].is<const char*>() &&

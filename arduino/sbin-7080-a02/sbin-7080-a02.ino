@@ -227,6 +227,8 @@ void loop() {
     // before the server could be asked: its commands go out now, in a second ACK.
     if (mqttReady && meshWindowStartedThisCycle()) {
         refreshLeafCommands();
+        // A leaf asking to join waits for the answer, so before the readings go up.
+        uploadJoinRequests();
     }
     if (mqttReady) {
         uploadRelayedReadings();

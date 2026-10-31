@@ -33,6 +33,14 @@ constexpr uint32_t MAX_BEACON_HOLD_MS = 30000;
 constexpr uint8_t MAX_HEARD_LEAVES = 8;
 constexpr uint8_t MAX_LATE_ACKS = 3;
 constexpr uint32_t LATE_ACK_INTERVAL_MS = 1000;
+// A leaf's JOIN needs the server (its keys come from there): while one is being
+// relayed the window stays open this long, so the reply can reach the leaf, which
+// listens for it. The server's answer is awaited this long.
+constexpr uint32_t JOIN_WINDOW_EXTENSION_MS = 25000;
+constexpr unsigned long JOIN_RESULT_TIMEOUT_MS = 10000;
+// The reply goes to the leaf until the radio confirms it, this many tries.
+constexpr uint8_t MAX_JOIN_REPLY_ATTEMPTS = 8;
+constexpr uint32_t JOIN_REPLY_INTERVAL_MS = 500;
 
 MeshRadio meshRadio;
 // The organization's key and this window's nonce (2m): every beacon and ACK
@@ -60,6 +68,22 @@ struct HeardLeaf {
 };
 HeardLeaf heardLeaves[MAX_HEARD_LEAVES];
 uint8_t heardLeafCount = 0;
+
+// The JOINs heard in this window (one per leaf), and the replies to hand back.
+struct JoinRequestSlot {
+    JoinPacket packet;
+    bool relayed;
+};
+struct JoinReplySlot {
+    JoinReplyPacket packet;
+    bool delivered;
+    uint8_t attempts;
+    uint32_t lastAttemptMs;
+};
+JoinRequestSlot joinRequests[MAX_JOIN_REQUESTS];
+uint8_t joinRequestCount = 0;
+JoinReplySlot joinReplies[MAX_JOIN_REQUESTS];
+uint8_t joinReplyCount = 0;
 // Relay upload time used this cycle, against RELAY_UPLOAD_BUDGET_MS.
 unsigned long relayUploadSpentMs = 0;
 // A leaf's command result went up this cycle: the server has finished that
@@ -128,6 +152,56 @@ void rememberHeardLeaf(const uint8_t mac[MAC_LENGTH], uint32_t messageId, uint8_
         leaf.answered = carriedCommand;
         leaf.lateAcks = 0;
         leaf.lastLateAckMs = 0;
+    }
+}
+
+// A leaf without keys asks to join: kept (one per leaf and window) for the main
+// task to pass to the server, which alone can check it.
+void rememberJoin(const JoinPacket& join) {
+    xSemaphoreTake(relayQueueMutex, portMAX_DELAY);
+    bool known = false;
+    for (uint8_t i = 0; i < joinRequestCount && !known; i++) {
+        known = macEquals(joinRequests[i].packet.header.origin, join.header.origin);
+    }
+    const bool stored = !known && joinRequestCount < MAX_JOIN_REQUESTS;
+    if (stored) {
+        joinRequests[joinRequestCount++] = {join, false};
+    }
+    xSemaphoreGive(relayQueueMutex);
+    if (stored) {
+        char macText[18];
+        formatMac(join.header.origin, macText);
+        Serial.printf("🔑 A leaf without keys asks to join: %s.\n", macText);
+    }
+}
+
+bool takeJoinToRelay(JoinPacket& out) {
+    bool found = false;
+    xSemaphoreTake(relayQueueMutex, portMAX_DELAY);
+    for (uint8_t i = 0; i < joinRequestCount && !found; i++) {
+        if (!joinRequests[i].relayed) {
+            joinRequests[i].relayed = true;
+            out = joinRequests[i].packet;
+            found = true;
+        }
+    }
+    xSemaphoreGive(relayQueueMutex);
+    return found;
+}
+
+void storeJoinReply(const JoinReplyPacket& reply) {
+    xSemaphoreTake(relayQueueMutex, portMAX_DELAY);
+    if (joinReplyCount < MAX_JOIN_REQUESTS) {
+        joinReplies[joinReplyCount++] = {reply, false, 0, 0};
+    }
+    xSemaphoreGive(relayQueueMutex);
+}
+
+// The window stays open at least until ms from now (see JOIN_WINDOW_EXTENSION_MS).
+void extendMeshWindow(uint32_t ms) {
+    const uint32_t end = millis() + ms;
+    if (static_cast<int32_t>(end - meshWindowEndMs) > 0) {
+        meshWindowEndMs = end;
     }
 }
 
@@ -210,6 +284,11 @@ void sendBeacon() {
 
 void handleMeshFrame(const ReceivedFrame& frame) {
     // Other gateways' beacons and stray ACKs are ignored by a gateway.
+    const JoinPacket* join = frame.as<JoinPacket>(PACKET_JOIN);
+    if (join != nullptr) {
+        rememberJoin(*join);
+        return;
+    }
     const DataPacket* data = frame.as<DataPacket>(PACKET_DATA);
     if (data == nullptr) {
         return;
@@ -296,6 +375,30 @@ void sendLateCommands() {
     }
 }
 
+// The server's answer to a JOIN goes to the leaf, which listens for it, until
+// the radio confirms the leaf got it.
+void sendJoinReplies() {
+    for (uint8_t i = 0; i < joinReplyCount; i++) {
+        JoinReplySlot& slot = joinReplies[i];
+        if (slot.delivered || slot.attempts >= MAX_JOIN_REPLY_ATTEMPTS ||
+            (slot.attempts > 0 && millis() - slot.lastAttemptMs < JOIN_REPLY_INTERVAL_MS)) {
+            continue;
+        }
+        JoinReplyPacket reply = slot.packet;
+        meshRadio.initHeader(reply.header, PACKET_JOIN_REPLY);
+        slot.delivered = meshRadio.sendTo(reply.leafMac, &reply, sizeof(reply));
+        slot.attempts++;
+        slot.lastAttemptMs = millis();
+        if (slot.delivered || slot.attempts == MAX_JOIN_REPLY_ATTEMPTS) {
+            char macText[18];
+            formatMac(reply.leafMac, macText);
+            Serial.printf(slot.delivered ? "📬 Handed %s the answer to its JOIN (attempt %u).\n"
+                                         : "⚠️ The answer to the JOIN of %s was not confirmed after %u tries.\n",
+                          macText, slot.attempts);
+        }
+    }
+}
+
 void meshGatewayTask(void*) {
     const uint32_t openedAt = millis();
     uint32_t lastBeaconAt = openedAt - BEACON_INTERVAL_MS;
@@ -323,6 +426,7 @@ void meshGatewayTask(void*) {
             handleMeshFrame(frame);
         }
         sendLateCommands();
+        sendJoinReplies();
     }
     meshRadio.end();
     Serial.printf("📡 Mesh window closed; %u leaf reading(s) waiting for upload.\n", relayQueueCount);
@@ -379,6 +483,8 @@ void beginMeshWindow() {
     meshAuth.resetCounts();
     clearMeshKeyRestartFlag();
     heardLeafCount = 0;
+    joinRequestCount = 0;
+    joinReplyCount = 0;
 
     const int64_t now = static_cast<int64_t>(time(nullptr));
     meshWindowSlotEpoch =
@@ -420,11 +526,13 @@ void endMeshWindow() {
     if (!meshWindowStarted) {
         return;
     }
-    if (meshTaskRunning) {
-        const uint32_t remainingMs = static_cast<int32_t>(meshWindowEndMs - millis()) > 0
-            ? meshWindowEndMs - millis()
-            : 0;
-        xSemaphoreTake(meshWindowDone, pdMS_TO_TICKS(remainingMs + 5000));
+    // The end can move while waiting (a JOIN keeps the window open), and a JOIN
+    // heard after the first pass is relayed here, while the window is still open.
+    while (meshTaskRunning && static_cast<int32_t>(meshWindowEndMs + 5000 - millis()) > 0) {
+        uploadJoinRequests();
+        if (xSemaphoreTake(meshWindowDone, pdMS_TO_TICKS(250)) == pdTRUE) {
+            break;
+        }
     }
     meshWindowStarted = false;
     uploadRelayedReadings();
@@ -473,6 +581,25 @@ void uploadRelayedReadings() {
 
 bool leafResultsUploaded() {
     return leafResultUploaded;
+}
+
+// Passes the JOINs heard in this window to the server, one at a time, and hands
+// each answer to the mesh task for the leaf. A JOIN with no answer is dropped:
+// the leaf asks again in the next window.
+void uploadJoinRequests() {
+    if (relayQueueMutex == nullptr || !mqttClient.connected() || deviceKey.length() == 0) {
+        return;
+    }
+    JoinPacket join;
+    while (takeJoinToRelay(join)) {
+        extendMeshWindow(JOIN_WINDOW_EXTENSION_MS);
+        JoinReplyPacket reply = {};
+        if (publishJoinRequest(join, reply, JOIN_RESULT_TIMEOUT_MS) == RELAY_NO_REPLY) {
+            Serial.println("⏳ No answer from the server to a JOIN; the leaf asks again next window.");
+            continue;
+        }
+        storeJoinReply(reply);
+    }
 }
 
 // Replaces the leaf commands with the server's latest list (from the
