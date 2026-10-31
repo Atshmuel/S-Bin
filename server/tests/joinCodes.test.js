@@ -14,6 +14,9 @@ const NONCE = '0102030405060708';
 const PROOF = '67e62c0a9ebcd28ab187e30c63baeaaa';
 const LEAF_KEY = 'ec03733de0bf2c674dfc3e02c081c88c503009e4964933e52b28b7905cb8f3fa';
 const BEACON_KEY = '89ff271e100fda114251b8fa137674bb0351fe9fd2a0d616fbfbd120c1f5e7ad';
+const REPLY_IV = 'a0a1a2a3a4a5a6a7a8a9aaab';
+const REPLY_CIPHERTEXT = '23901d6bd46fcc37a2997468388f40cd41ab1b53c6ca75b2bd7d606994b699709f672f3acf2aa56c67fdd9d69041406d58d8607c5fa26416be6d2452358e885bec';
+const REPLY_TAG = 'a51ea5148b9eb13dd08a909a8d2e5ba3';
 
 describe('join code material', () => {
     test('matches the independent computation', () => {
@@ -52,11 +55,16 @@ describe('join proof', () => {
 
 describe('join reply', () => {
     const sealed = () => sealJoinReply({ joinKey: JOIN_KEY, mac: MAC, nonce: NONCE, keyId: 2, leafKey: LEAF_KEY, beaconKey: BEACON_KEY });
+    test('matches the independent computation', () => {
+        const reply = sealJoinReply({ joinKey: JOIN_KEY, mac: MAC, nonce: NONCE, keyId: 2, leafKey: LEAF_KEY, beaconKey: BEACON_KEY, iv: Buffer.from(REPLY_IV, 'hex') });
+        assert.deepEqual(reply, { iv: REPLY_IV, ciphertext: REPLY_CIPHERTEXT, tag: REPLY_TAG });
+    });
     test('opens with the code\'s key to the keys sent', () => {
         const reply = sealed();
         assert.equal(reply.iv.length, 24);
         assert.equal(reply.ciphertext.length, 130);
         assert.equal(reply.tag.length, 32);
+        assert.ok(!reply.ciphertext.includes(LEAF_KEY.slice(0, 16)));
         assert.deepEqual(openJoinReply({ joinKey: JOIN_KEY, mac: MAC, nonce: NONCE, ...reply }),
             { keyId: 2, leafKey: LEAF_KEY, beaconKey: BEACON_KEY });
     });

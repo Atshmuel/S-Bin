@@ -29,6 +29,10 @@ enum PacketType : uint8_t {
     PACKET_BEACON = 1,
     PACKET_DATA = 2,
     PACKET_ACK = 3,
+    // A leaf without keys joins the mesh (SbinMeshJoin.h). Neither carries the
+    // 8-byte tag: the leaf has no key yet, and the reply is sealed by its own tag.
+    PACKET_JOIN = 4,
+    PACKET_JOIN_REPLY = 5,
 };
 
 enum AckStatus : uint8_t {
@@ -192,7 +196,45 @@ struct __attribute__((packed)) AckPacket {
     uint32_t instructionValue;    // calibrate_scale: the known grams
 };
 
+constexpr size_t ORG_ID_LENGTH = 12;          // a MongoDB ObjectId
+constexpr size_t JOIN_CODE_ID_LENGTH = 4;
+constexpr size_t JOIN_NONCE_LENGTH = 8;
+constexpr size_t JOIN_PROOF_LENGTH = 16;
+constexpr size_t JOIN_IV_LENGTH = 12;
+constexpr size_t JOIN_SEALED_LENGTH = 65;     // key ID, leaf key, beacon key
+constexpr size_t JOIN_TAG_LENGTH = 16;
+
+// A leaf without keys asks to join (header.origin is its MAC). It proves it
+// holds the one-time join code without sending it; any gateway of the
+// organization passes it to the server.
+struct __attribute__((packed)) JoinPacket {
+    PacketHeader header;
+    uint8_t orgId[ORG_ID_LENGTH];
+    uint8_t codeId[JOIN_CODE_ID_LENGTH];
+    uint8_t nonce[JOIN_NONCE_LENGTH];     // random; the reply is bound to it
+    uint8_t proof[JOIN_PROOF_LENGTH];
+};
+
+enum JoinStatus : uint8_t {
+    JOIN_ACCEPTED = 1,
+    JOIN_REFUSED = 2,                     // the server did not accept it; the rest is zero
+};
+
+// The server's answer, passed on by the gateway that relayed the JOIN: the leaf's
+// keys sealed under a key made from the join code.
+struct __attribute__((packed)) JoinReplyPacket {
+    PacketHeader header;
+    uint8_t leafMac[MAC_LENGTH];
+    uint8_t nonce[JOIN_NONCE_LENGTH];
+    uint8_t status;                       // JoinStatus
+    uint8_t iv[JOIN_IV_LENGTH];
+    uint8_t sealed[JOIN_SEALED_LENGTH];
+    uint8_t tag[JOIN_TAG_LENGTH];
+};
+
 static_assert(sizeof(PacketHeader) == 21, "PacketHeader layout changed");
+static_assert(sizeof(JoinPacket) <= MAX_FRAME_SIZE, "JoinPacket too large");
+static_assert(sizeof(JoinReplyPacket) <= MAX_FRAME_SIZE, "JoinReplyPacket too large");
 static_assert(sizeof(BeaconPacket) + TAG_LENGTH <= MAX_FRAME_SIZE, "BeaconPacket too large");
 static_assert(sizeof(DataPacket) + TAG_LENGTH <= MAX_FRAME_SIZE, "DataPacket too large");
 static_assert(sizeof(AckPacket) + TAG_LENGTH <= MAX_FRAME_SIZE, "AckPacket too large");

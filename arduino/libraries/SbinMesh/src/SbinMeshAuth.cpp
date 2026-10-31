@@ -100,6 +100,12 @@ void MeshAuth::useLeafKeys(const uint8_t ownMac[MAC_LENGTH], const Key& leafKey,
     keyId_ = keyId;
 }
 
+void MeshAuth::useJoining(const uint8_t ownMac[MAC_LENGTH]) {
+    role_ = Role::Joining;
+    memcpy(ownMac_, ownMac, MAC_LENGTH);
+    keyId_ = 0;
+}
+
 void MeshAuth::startWindow(uint32_t nonce) {
     previousNonce_ = nonce_;
     hasPreviousNonce_ = hasNonce_;
@@ -168,6 +174,9 @@ AuthResult MeshAuth::check(const uint8_t* frame, size_t length) const {
             if (length != sizeof(BeaconPacket) + TAG_LENGTH) {
                 return AuthResult::BAD_LENGTH;
             }
+            if (role_ == Role::Joining) {
+                return AuthResult::OK;
+            }
             Key beaconKey;
             if (role_ == Role::Gateway) {
                 if (!organizationKeyFor(header->keyId, organizationKey)) {
@@ -211,6 +220,22 @@ AuthResult MeshAuth::check(const uint8_t* frame, size_t length) const {
                 return AuthResult::UNKNOWN_KEY_ID;
             }
             return tagIsValid(leafKey_, frame, length) ? AuthResult::OK : AuthResult::BAD_TAG;
+        }
+        case PACKET_JOIN: {
+            if (length != sizeof(JoinPacket)) {
+                return AuthResult::BAD_LENGTH;
+            }
+            // Not signed (the leaf has no key); the server checks its proof.
+            return role_ == Role::Gateway ? AuthResult::OK : AuthResult::NOT_FOR_ME;
+        }
+        case PACKET_JOIN_REPLY: {
+            if (length != sizeof(JoinReplyPacket)) {
+                return AuthResult::BAD_LENGTH;
+            }
+            const JoinReplyPacket* reply = reinterpret_cast<const JoinReplyPacket*>(frame);
+            return role_ == Role::Joining && memcmp(reply->leafMac, ownMac_, MAC_LENGTH) == 0
+                ? AuthResult::OK
+                : AuthResult::NOT_FOR_ME;
         }
         default:
             return AuthResult::BAD_LENGTH;

@@ -1,6 +1,7 @@
 #include "SbinMeshLeaf.h"
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <esp_attr.h>
 #include <esp_sleep.h>
 #include <string.h>
@@ -13,6 +14,8 @@
 namespace sbinmesh {
 
 namespace {
+constexpr char JOINED_KEYS_NAMESPACE[] = "meshkeys";
+constexpr char JOINED_KEYS_ENTRY[] = "leaf";
 constexpr uint64_t MICROSECONDS_PER_SECOND = 1000000ULL;
 // First boot, or after losing the gateway: without a clock or schedule the
 // leaf cannot know when the gateway's short window is, so it listens through
@@ -511,6 +514,34 @@ bool startRadio() {
     return true;
 }
 }  // namespace
+
+bool loadJoinedKeys(LeafKeys& keys) {
+    Preferences store;
+    store.begin(JOINED_KEYS_NAMESPACE, true);
+    LeafKeys loaded = {};
+    const bool found = store.getBytesLength(JOINED_KEYS_ENTRY) == sizeof(loaded) &&
+                       store.getBytes(JOINED_KEYS_ENTRY, &loaded, sizeof(loaded)) == sizeof(loaded);
+    store.end();
+    if (!found || loaded.keyId == 0) {
+        return false;
+    }
+    keys = loaded;
+    return true;
+}
+
+void saveJoinedKeys(const LeafKeys& keys) {
+    Preferences store;
+    store.begin(JOINED_KEYS_NAMESPACE, false);
+    store.putBytes(JOINED_KEYS_ENTRY, &keys, sizeof(keys));
+    store.end();
+}
+
+void forgetJoinedKeys() {
+    Preferences store;
+    store.begin(JOINED_KEYS_NAMESPACE, false);
+    store.remove(JOINED_KEYS_ENTRY);
+    store.end();
+}
 
 LeafExchange runLeafExchange(const LeafConfig& leafConfig, uint32_t listenMs) {
     config = &leafConfig;

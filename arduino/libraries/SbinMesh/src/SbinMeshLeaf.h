@@ -24,6 +24,13 @@ struct LeafKeys {
     uint8_t keyId;
 };
 
+// The keys a leaf got by joining (SbinMeshJoin.h), kept in flash: the same
+// struct a sketch passes in LeafConfig. False when there are none, or they are
+// not for this board.
+bool loadJoinedKeys(LeafKeys& keys);
+void saveJoinedKeys(const LeafKeys& keys);
+void forgetJoinedKeys();
+
 struct LeafHooks {
     // Fills a reading's measurements (flags, level, battery, distance, weight,
     // location); the header, schedule and diagnostics are filled already.

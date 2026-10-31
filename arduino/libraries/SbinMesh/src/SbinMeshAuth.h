@@ -65,6 +65,11 @@ public:
                             const Key* previous = nullptr, uint8_t previousKeyId = 0);
     void useLeafKeys(const uint8_t ownMac[MAC_LENGTH], const Key& leafKey, const Key& beaconKey,
                      uint8_t keyId);
+    // A leaf that has no keys yet and is asking to join (SbinMeshJoin.h): it
+    // cannot check a beacon, so it takes any well-formed one for its timing, and
+    // takes the reply to its JOIN, which is sealed and checked by its own tag.
+    // It signs nothing; once it has keys it uses useLeafKeys().
+    void useJoining(const uint8_t ownMac[MAC_LENGTH]);
     bool hasKey() const { return role_ != Role::None; }
     uint8_t keyId() const { return keyId_; }
 
@@ -85,7 +90,7 @@ public:
     void resetCounts();
 
 private:
-    enum class Role : uint8_t { None, Gateway, Leaf };
+    enum class Role : uint8_t { None, Gateway, Leaf, Joining };
 
     AuthResult check(const uint8_t* frame, size_t length) const;
     bool organizationKeyFor(uint8_t keyId, Key& out) const;
