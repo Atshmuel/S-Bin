@@ -7,18 +7,28 @@ import { getVariant } from "@/utils/binHelpers";
 import { Link, useSearchParams } from "react-router-dom";
 import { LinkIcon, RadioTower } from "lucide-react";
 import { useLogs } from "@/hooks/bins/binLogs/useBinLogs";
+import OrganizationSelect from "@/components/OrganizationSelect";
+import { useSelectedOrg } from "@/hooks/organizations/useSelectedOrg";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 function AllLogs() {
     const { t } = useTranslation();
     const [searchParams, setSearchParams] = useSearchParams()
+    const { selectedOrgId } = useSelectedOrg()
 
     const pageFromUrl = parseInt(searchParams.get("page")) || 1;
 
     const [pagination, setPagination] = useState({ pageIndex: pageFromUrl - 1, pageSize: 10 })
     const [searchTerm, setSearchTerm] = useState("");
     const [sort, setSort] = useState(null);
+
+    // Another organization's list starts again at page 1.
+    const [shownOrgId, setShownOrgId] = useState(selectedOrgId);
+    if (shownOrgId !== selectedOrgId) {
+        setShownOrgId(selectedOrgId);
+        setPagination(prev => ({ ...prev, pageIndex: 0 }));
+    }
 
     useEffect(() => {
         const newPage = pagination.pageIndex + 1;
@@ -47,7 +57,7 @@ function AllLogs() {
         setPagination(prev => ({ ...prev, pageIndex: 0 }));
     }, []);
 
-    const { allLogs, totalLogs, isLoadingLogs, logsError } = useLogs(pagination.pageIndex + 1, pagination.pageSize, searchTerm, sort)
+    const { allLogs, totalLogs, isLoadingLogs, logsError } = useLogs(pagination.pageIndex + 1, pagination.pageSize, searchTerm, sort, { org: selectedOrgId ?? undefined })
 
     const pageCount = useMemo(() => {
         return totalLogs ? Math.ceil(totalLogs / pagination.pageSize) : 0
@@ -163,7 +173,8 @@ function AllLogs() {
         }
     ]
     return (
-        <div>
+        <div className="flex flex-col gap-4">
+            <OrganizationSelect />
             <DataTable columns={columns} data={allLogs ?? []} isLoading={isLoadingLogs} error={logsError} title={t('pages.logList.title')} manualPagination={true} pageCount={pageCount} pagination={pagination} onPaginationChange={setPagination} manualFiltering={true} onSearchChange={handleSearchChange} manualSorting={true} onSortChange={handleSortChange} />
         </div >
     )

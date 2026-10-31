@@ -72,8 +72,8 @@ export async function getAllLogs(req, res) {
                 return res.status(404).json({ message: 'Bin not found.' });
             }
             filter.binId = new mongoose.Types.ObjectId(binId);
-        } else if (role !== ROLES.OWNER) {
-            const bins = await binModel.find({ ownerId: new mongoose.Types.ObjectId(ownerId) }, { _id: 1 }).lean();
+        } else if (role !== ROLES.OWNER || req.user.selectedOrg) {
+            const bins = await binModel.find(scopeToOrganization({}, req.user), { _id: 1 }).lean();
             filter.binId = { $in: bins.map(bin => bin._id) };
         }
         if (!isNaN(search)) filter.newLevel = search;

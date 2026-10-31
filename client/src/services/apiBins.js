@@ -3,9 +3,10 @@ import { toLngLat } from "@/utils/geo";
 import { request } from "./request";
 
 //get bins
-export function getAllUserBins(page = 1, limit = 10, search = "", sort = null) {
+export function getAllUserBins(page = 1, limit = 10, search = "", sort = null, org = null) {
     const order = sort ? `&sort=${sort.sort}&order=${sort.order}` : "";
-    return request(`${BINS_EP}/all?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}${order}`);
+    const orgParam = org ? `&org=${org}` : "";
+    return request(`${BINS_EP}/all?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}${order}${orgParam}`);
 }
 
 // A map view: { total, bins } (marker fields only), or for a crowded view

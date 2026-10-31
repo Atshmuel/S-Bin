@@ -13,7 +13,7 @@ export const binRouter = Router();
 binRouter.use(authToken) //demends jwt for all requests
 
 //getters
-binRouter.get('/all', getAllUserBins) //all user bins in db
+binRouter.get('/all', selectOrganization, getAllUserBins) //all user bins in db (an owner's ?org= narrows it)
 binRouter.get('/map', getMapBins) //the devices in a map view (?south&west&north&east), marker fields only
 binRouter.get('/map/extent', selectOrganization, getMapExtent) //the box around all the user's devices (an owner's ?org= narrows it)
 // Organization settings: owners read every organization's, anyone else their

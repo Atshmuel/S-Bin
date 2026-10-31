@@ -17,10 +17,13 @@ import { useTranslation } from "react-i18next";
 import { useMe } from "@/hooks/users/auth/useMe";
 import { toLatLng } from "@/utils/geo";
 import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
+import OrganizationSelect from "@/components/OrganizationSelect";
+import { useSelectedOrg } from "@/hooks/organizations/useSelectedOrg";
 
 function BinsList() {
     const { t } = useTranslation();
     const { isAdmin } = useMe();
+    const { selectedOrgId } = useSelectedOrg();
     const [searchParams, setSearchParams] = useSearchParams();
 
     const pageFromUrl = parseInt(searchParams.get("page")) || 1;
@@ -28,9 +31,16 @@ function BinsList() {
     const [searchTerm, setSearchTerm] = useState("");
     const [sort, setSort] = useState(null);
 
+    // Another organization's list starts again at page 1.
+    const [shownOrgId, setShownOrgId] = useState(selectedOrgId);
+    if (shownOrgId !== selectedOrgId) {
+        setShownOrgId(selectedOrgId);
+        setPagination(prev => ({ ...prev, pageIndex: 0 }));
+    }
+
     const { allBins, totalBins, isLoadingBins, binsError } = useBins(pagination.pageIndex + 1,
         pagination.pageSize,
-        searchTerm, { sort });
+        searchTerm, { sort, org: selectedOrgId ?? undefined });
 
     const { deleteBins, isDeleting } = useDeleteBinBatch()
     const [binIds, setBinIds] = useState([]);
@@ -240,7 +250,8 @@ function BinsList() {
 
 
     return (
-        <div className="sm:p-10">
+        <div className="flex flex-col gap-4 sm:p-10">
+            <OrganizationSelect />
             <DataTable columns={columns} data={allBins ?? []} isLoading={isLoadingBins} error={binsError} title={t('pages.binsList.title')} manualPagination={true} manualFiltering={true} pageCount={pageCount} pagination={pagination} onPaginationChange={setPagination}
                 onSearchChange={handleSearchChange} manualSorting={true} onSortChange={handleSortChange} ActionButton={allBins?.length && binIds?.length ? ActionButton : null} />
         </div>
