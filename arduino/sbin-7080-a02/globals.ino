@@ -18,6 +18,8 @@ String DeviceMac = "";
 String ownerId = "";
 String deviceKey = "";
 String registrationCode = "";
+// The one-time code a device without a SIM card joins the mesh with (32 hex), or empty.
+String joinCode = "";
 float latitude = 0;
 float longitude = 0;
 bool hasGpsFix = false;

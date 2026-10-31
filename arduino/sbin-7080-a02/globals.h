@@ -123,6 +123,7 @@ extern String DeviceMac;
 extern String ownerId;
 extern String deviceKey;
 extern String registrationCode;
+extern String joinCode;
 extern float latitude;
 extern float longitude;
 extern bool hasGpsFix;
@@ -297,6 +298,9 @@ bool startConfigurationPortal();
 void handleConfigurationPortal();
 void loadDeviceSettings();
 void saveSetup(const String& orgId, const String& code);
+bool normalizeJoinCode(String& code);
+void saveJoinCode(const String& code);
+void forgetJoinCode();
 
 // The organization's mesh key (meshkeys.ino).
 void loadMeshKeys();

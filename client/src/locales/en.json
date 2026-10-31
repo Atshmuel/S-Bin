@@ -709,7 +709,8 @@
         "orgIdCopied": "Organization ID copied!",
         "codeCopied": "Registration code copied!",
         "copyFailed": "Failed to copy to clipboard.",
-        "locationCopied": "Location copied!"
+        "locationCopied": "Location copied!",
+        "joinCodeCopied": "Join code copied!"
       },
       "intro": {
         "title": "Add a device (4 steps, about 10 minutes)",
@@ -728,7 +729,9 @@
         "code": "Registration code",
         "copyOrgId": "Copy the organization ID",
         "copyCode": "Copy the registration code",
-        "copyLocation": "Copy the location"
+        "copyLocation": "Copy the location",
+        "joinCode": "Join code (devices without a SIM card)",
+        "copyJoinCode": "Copy the join code"
       },
       "stepOne": {
         "title": "Prepare",
@@ -771,7 +774,8 @@
         "sendHint": "Tap it while your phone is on the device's network: the device saves the organization, the code and the location, and restarts. Nothing to type.",
         "fieldsHint": "Both are also in the organization's settings. Keep the code to the people who install devices.",
         "withLocation": "Sends the bin's location:",
-        "withoutLocation": "No location taken: the device will wait for a GPS fix. To skip that, go back to step 1 and take it before joining the device's network (the phone needs internet for it)."
+        "withoutLocation": "No location taken: the device will wait for a GPS fix. To skip that, go back to step 1 and take it before joining the device's network (the phone needs internet for it).",
+        "joinHint": "The join code is only for a device without a SIM card (a mesh leaf): it uses this one-time code, valid for 24 hours and for one device, to get its mesh keys through a gateway. A device with a SIM card ignores it."
       },
       "stepFour": {
         "title": "Wait for its first report",

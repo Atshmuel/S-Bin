@@ -324,6 +324,13 @@ const char setupPortalHtml[] PROGMEM = R"rawliteral(
                    aria-describedby="codeHint" placeholder="XXXX-XXXX">
             <p id="codeHint" class="hint" data-i18n="codeHint">The organization's registration code, from the add-device page or its settings.</p>
           </div>
+          <div class="form-group">
+            <label for="join" data-i18n="joinLabel">Join code (only without a SIM card)</label>
+            <input id="join" name="join" type="text" autocomplete="off"
+                   autocapitalize="none" spellcheck="false" dir="ltr"
+                   aria-describedby="joinHint" placeholder="optional">
+            <p id="joinHint" class="hint" data-i18n="joinHint">For a device without a SIM card: the one-time join code from the add-device page. Leave it empty if the device has a SIM card.</p>
+          </div>
           <button id="submitBtn" class="submit" type="submit">
             <span id="submitLabel" data-i18n="submit">Save and connect</span>
             <svg aria-hidden="true" viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><path d="M5 12h12.17l-5.59-5.59L13 5l7 7-7 7-1.41-1.41L17.17 13H5v-1z"/></svg>
@@ -348,6 +355,8 @@ const char setupPortalHtml[] PROGMEM = R"rawliteral(
         orgHint: "Enter the organization ID provided by your S-Bin administrator.",
         codeLabel: "Registration code",
         codeHint: "The organization's registration code, from the add-device page or its settings.",
+        joinLabel: "Join code (only without a SIM card)",
+        joinHint: "For a device without a SIM card: the one-time join code from the add-device page. Leave it empty if the device has a SIM card.",
         placeholder: "e.g. your organization ID",
         submit: "Save and connect",
         submitting: "Saving...",
@@ -369,6 +378,8 @@ const char setupPortalHtml[] PROGMEM = R"rawliteral(
         orgHint: "הזינו את מזהה הארגון שקיבלתם ממנהל מערכת S-Bin.",
         codeLabel: "קוד רישום",
         codeHint: "קוד הרישום של הארגון, מדף הוספת המכשיר או מהגדרות הארגון.",
+        joinLabel: "קוד הצטרפות (רק למכשיר ללא כרטיס SIM)",
+        joinHint: "למכשיר ללא כרטיס SIM: קוד ההצטרפות החד־פעמי מדף הוספת המכשיר. השאירו ריק אם יש במכשיר כרטיס SIM.",
         placeholder: "לדוגמה: מזהה הארגון שלכם",
         submit: "שמירה והתחברות",
         submitting: "שומר...",
@@ -538,7 +549,16 @@ bool saveSetupFromRequest(String& error) {
         return false;
     }
 
+    // Optional: only a device without a SIM card needs it, to get its mesh keys
+    // from a gateway.
+    String submittedJoinCode = configServer.arg("join");
+    if (!normalizeJoinCode(submittedJoinCode)) {
+        error = "The join code must be 32 hexadecimal characters (dashes and spaces are fine)";
+        return false;
+    }
+
     saveSetup(submittedOrgId, submittedCode);
+    saveJoinCode(submittedJoinCode);
     if (submittedLocation.length() > 0) {
         saveSetupLocation(lat, lng);
     }
@@ -562,6 +582,7 @@ void loadDeviceSettings() {
     preferences.begin("credentials", true);
     ownerId = preferences.getString("ownerId", "");
     registrationCode = preferences.getString("regCode", "");
+    joinCode = preferences.getString("joinCode", "");
     deviceKey = preferences.getString("deviceKey", "");
     deviceRole = static_cast<DeviceRole>(preferences.getUChar("role", ROLE_UNKNOWN));
     binDepthMm = preferences.getInt("binDepthMm", 0);
@@ -593,6 +614,52 @@ void loadDeviceSettings() {
                 latitude >= -90.0f && latitude <= 90.0f &&
                 longitude >= -180.0f && longitude <= 180.0f &&
                 lastGpsUpdateEpoch > 0;
+}
+
+// A join code as the page gives it: lower case, without dashes or spaces.
+// True when it is empty (none) or 32 hexadecimal characters.
+bool normalizeJoinCode(String& code) {
+    String clean;
+    for (size_t i = 0; i < code.length(); i++) {
+        const char c = tolower(code[i]);
+        if (c == '-' || c == ' ') {
+            continue;
+        }
+        clean += c;
+    }
+    code = clean;
+    if (code.length() == 0) {
+        return true;
+    }
+    if (code.length() != 32) {
+        return false;
+    }
+    for (size_t i = 0; i < code.length(); i++) {
+        if (!isxdigit(code[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Kept until the device has its mesh keys (or became a gateway); a new setup
+// without one forgets an old one.
+void saveJoinCode(const String& code) {
+    preferences.begin("credentials", false);
+    if (code.length() > 0) {
+        preferences.putString("joinCode", code);
+    } else {
+        preferences.remove("joinCode");
+    }
+    preferences.end();
+    joinCode = code;
+}
+
+void forgetJoinCode() {
+    preferences.begin("credentials", false);
+    preferences.remove("joinCode");
+    preferences.end();
+    joinCode = "";
 }
 
 void saveSetup(const String& orgId, const String& code) {
@@ -636,6 +703,7 @@ void reopenSetupPortal() {
     preferences.begin("credentials", false);
     preferences.remove("ownerId");
     preferences.remove("regCode");
+    preferences.remove("joinCode");
     preferences.end();
     delay(500);
     ESP.restart();
@@ -644,7 +712,9 @@ void reopenSetupPortal() {
 void saveDeviceKey(const String& key) {
     preferences.begin("credentials", false);
     preferences.putString("deviceKey", key);
+    preferences.remove("joinCode");  // a gateway needs no join code
     preferences.end();
+    joinCode = "";
 }
 
 void clearDeviceSettings() {
@@ -676,7 +746,7 @@ bool startConfigurationPortal() {
         delay(1000);
         ESP.restart();
     });
-    // The add-device page's one-tap link: /setup?orgId=…&code=…&location=lat,lng
+    // The add-device page's one-tap link: /setup?orgId=…&code=…&join=…&location=lat,lng
     // (an https page cannot send it in the background, so the phone opens it).
     configServer.on("/setup", HTTP_GET, []() {
         String error;

@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useAppSide } from "@/hooks/useAppSide"
 import { useOrganizations } from "@/hooks/organizations/useOrganizations"
 import { useQuery } from "@tanstack/react-query"
-import { getMeshSettings } from "@/services/apiMeshSettings"
+import { createJoinCode, getMeshSettings } from "@/services/apiMeshSettings"
 import { useMe } from "@/hooks/users/auth/useMe"
 import { useRemainingHeight } from "@/hooks/useRemainingHeight"
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, CircleCheck, Copy, Send, Info, KeyRound, ListChecks, LocateFixed, Smartphone } from "lucide-react"
@@ -196,6 +196,21 @@ function AddBin() {
     // The organization's registration code, entered with its ID in the device's setup.
     const { data: settings } = useQuery({ queryKey: ["mesh-settings"], queryFn: getMeshSettings })
     const registrationCode = settings?.organizations?.find(org => org._id === ownerId)?.registrationCode ?? null
+    // A device without a SIM card (a mesh leaf) gets its mesh keys with a one-time
+    // code made when this page opens for the organization; a device with a SIM
+    // ignores it. Without one the link still sets a device up.
+    const { data: joinCodeData } = useQuery({
+        queryKey: ["join-code", ownerId],
+        queryFn: () => createJoinCode(ownerId),
+        enabled: Boolean(ownerId),
+        staleTime: Infinity,
+        gcTime: 0,
+        retry: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+    })
+    const joinCode = joinCodeData?.code ?? null
+    const joinCodeText = joinCode ? joinCode.match(/.{8}/g).join("-") : null
     const waiting = ownerId ? t(key("stepOne.loading")) : t(key("stepOne.organizationRequired"))
 
     const copy = async (what, value) => {
@@ -212,7 +227,7 @@ function AddBin() {
     // Opened on the phone while it is on the device's network, this link sets
     // the device up in one tap (an https page cannot send it in the background).
     const setupLink = ownerId && registrationCode
-        ? `${SETUP_PAGE_URL}setup?${new URLSearchParams({ orgId: ownerId, code: registrationCode, ...(binLocation ? { location: binLocation.text } : {}) })}`
+        ? `${SETUP_PAGE_URL}setup?${new URLSearchParams({ orgId: ownerId, code: registrationCode, ...(joinCode ? { join: joinCode } : {}), ...(binLocation ? { location: binLocation.text } : {}) })}`
         : null
     const fields = (
         <div className="bg-muted p-4 rounded-lg space-y-3">
@@ -220,6 +235,8 @@ function AddBin() {
                 copied={copied === "orgId"} onCopy={() => copy("orgId", ownerId)} copyLabel={t(key("fields.copyOrgId"))} />
             <CopyField label={t(key("fields.code"))} value={registrationCode} placeholder={waiting}
                 copied={copied === "code"} onCopy={() => copy("code", registrationCode)} copyLabel={t(key("fields.copyCode"))} />
+            <CopyField label={t(key("fields.joinCode"))} value={joinCodeText} placeholder={waiting}
+                copied={copied === "joinCode"} onCopy={() => copy("joinCode", joinCodeText)} copyLabel={t(key("fields.copyJoinCode"))} />
         </div>
     )
     const [panelRef, panelHeight] = useRemainingHeight({ minHeight: 420 })
@@ -304,6 +321,7 @@ function AddBin() {
                             <p className="text-sm text-muted-foreground">{t(key("stepThree.steps.enter"))}</p>
                             {fields}
                             <p className="text-xs text-muted-foreground">{t(key("stepThree.fieldsHint"))}</p>
+                            <p className="text-xs text-muted-foreground">{t(key("stepThree.joinHint"))}</p>
                         </Step>
 
                         <Step number={4} height={panelHeight} icon={CircleCheck} name="stepFour" onBack={back}
