@@ -4,6 +4,7 @@ import { deleteOrgRefs } from "../service/sharedService.js";
 import { COST_SETTINGS, THRESHOLD_SETTINGS, MAX_MESH_AWAKE_WINDOW_SECONDS, REPORT_INTERVAL_OPTIONS_MINUTES } from "../../utils/constants.js";
 import { ROLES } from "../../utils/constants.js";
 import { generateRegistrationCode } from "../../utils/registrationCode.js";
+import { createJoinCode } from "../service/joinService.js";
 
 const MESH_SETTINGS_PROJECTION = {
     name: 1, meshAwakeWindowSeconds: 1, reportIntervalMinutes: 1, reportStartHour: 1, fleet: 1, depot: 1, routePlanningHour: 1, lastAutoPlan: 1,
@@ -82,6 +83,27 @@ export async function getMeshSettings(req, res) {
         return res.status(200).json({ organizations });
     } catch (error) {
         return res.status(500).json({ message: error?.message || "Internal server error 'getMeshSettings'" });
+    }
+}
+
+// A one-time join code for a leaf about to be added: owners for any
+// organization, admins for their own. The code is shown once, here.
+export async function createOrganizationJoinCode(req, res) {
+    const { orgId } = req.params;
+    const { role, org, id } = req.user;
+    if (!mongoose.Types.ObjectId.isValid(orgId)) {
+        return res.status(400).json({ message: "Invalid organization ID." });
+    }
+    if (role !== ROLES.OWNER && orgId !== org) {
+        return res.status(403).json({ message: "You can only add devices to your own organization." });
+    }
+    try {
+        if (!await organizationModel.exists({ _id: orgId })) {
+            return res.status(404).json({ message: "Organization not found." });
+        }
+        return res.status(201).json(await createJoinCode(orgId, id));
+    } catch (error) {
+        return res.status(500).json({ message: error?.message || "Internal server error 'createOrganizationJoinCode'" });
     }
 }
 

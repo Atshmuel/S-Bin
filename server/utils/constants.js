@@ -377,6 +377,14 @@ export const REGISTRATION_CODE_LENGTH = 8;
 export const MESH_KEY_BYTES = 32;
 export const MESH_KEY_ID_COUNT = 255;
 
+// A leaf without a SIM joins the mesh with a one-time join code from the add-bin
+// wizard (see utils/joinCodes.js): valid this long, bound to the first leaf that
+// uses it, and an organization keeps this many unused ones (the newest).
+export const JOIN_CODE_TTL_MS = 24 * 60 * 60 * 1000;
+export const MAX_ACTIVE_JOIN_CODES = 20;
+// Wrong proofs for one code before it is deleted.
+export const MAX_JOIN_PROOF_FAILURES = 5;
+
 // A developer's machine leaves the devices, the scheduled jobs and real emails
 // to the deployed server (running them too would store every device report
 // twice and send every email twice), and accepts the local client's origin.

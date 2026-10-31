@@ -1,5 +1,6 @@
 import { handleDeviceLog } from "./handlers/telemetry.js";
 import { handleRelay } from "./handlers/relay.js";
+import { handleJoin } from "./handlers/join.js";
 import { handleInstructionCheck, handleInstructionResult } from "./handlers/instructions.js";
 
 export { removeBinConfig } from "./handlers/commands.js";
@@ -26,6 +27,9 @@ export async function handleMqttMessage(topic, payload) {
             break;
         case "relay":
             await handleRelay(mac, payload);
+            break;
+        case "join":
+            await handleJoin(mac, payload);
             break;
         default:
             console.log("Unknown topic:", field);
