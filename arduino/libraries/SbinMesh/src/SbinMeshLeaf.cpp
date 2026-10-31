@@ -1,7 +1,6 @@
 #include "SbinMeshLeaf.h"
 
 #include <Arduino.h>
-#include <Preferences.h>
 #include <esp_attr.h>
 #include <esp_sleep.h>
 #include <string.h>
@@ -72,10 +71,6 @@ constexpr uint8_t MAX_PENDING_READINGS = 4;
 constexpr int64_t MIN_DRIFT_MEASUREMENT_MS = 10LL * 60 * 1000;
 // Above the RC oscillator's ±5%: a larger value means a bad reference time.
 constexpr int32_t MAX_ABS_DRIFT_PPM = 60000;
-// The drift is a property of the board, so it is also kept in flash (as on
-// the gateway), rewritten only when the estimate moves this much.
-constexpr char PREFERENCES_NAMESPACE[] = "leaf";
-constexpr int32_t DRIFT_SAVE_THRESHOLD_PPM = 200;
 
 // A reading waiting for the gateway, and when it was taken by the device clock.
 struct PendingReading {
@@ -118,7 +113,6 @@ MeshRadio radio;
 // echoes it, so the gateway knows it is for this window.
 MeshAuth meshAuth;
 uint32_t windowNonce = 0;
-Preferences preferences;
 uint8_t gatewayMac[MAC_LENGTH] = {};
 
 bool clockValid() {
@@ -135,23 +129,11 @@ void loadSavedDrift() {
         return;
     }
     driftLoaded = true;
-    preferences.begin(PREFERENCES_NAMESPACE, false);
-    if (preferences.isKey("driftPpm")) {
-        driftPpm = preferences.getInt("driftPpm", 0);
+    if (loadBoardDriftPpm(driftPpm)) {
         driftMeasured = true;
         residualPpm = FIRST_RESIDUAL_PPM;
         Serial.printf("⏱️ Clock drift %+ld ppm loaded from flash.\n", static_cast<long>(driftPpm));
     }
-    preferences.end();
-}
-
-void saveDrift() {
-    preferences.begin(PREFERENCES_NAMESPACE, false);
-    if (!preferences.isKey("driftPpm") ||
-        abs(driftPpm - preferences.getInt("driftPpm", 0)) > DRIFT_SAVE_THRESHOLD_PPM) {
-        preferences.putInt("driftPpm", driftPpm);
-    }
-    preferences.end();
 }
 
 void queueReading(const DataPacket& reading) {
@@ -243,7 +225,7 @@ void applyBeacon(const BeaconPacket& beacon, const ReceivedFrame& frame, bool at
                 : FIRST_RESIDUAL_PPM;
             driftPpm = blendDriftPpm(driftPpm, driftMeasured, measuredPpm);
             driftMeasured = true;
-            saveDrift();
+            saveBoardDriftPpm(driftPpm);
             Serial.printf("⏱️ Clock drift: measured %+ld ppm over %lld s; using %+ld ppm, residual %lu ppm.\n",
                           static_cast<long>(measuredPpm),
                           static_cast<long long>(realSleptMs / 1000),

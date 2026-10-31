@@ -1,8 +1,30 @@
 #include "SbinClockDrift.h"
 
+#include <Preferences.h>
+#include <stdlib.h>
 #include <sys/time.h>
 
 namespace sbinmesh {
+
+namespace {
+constexpr char DRIFT_NAMESPACE[] = "clock";
+constexpr char DRIFT_KEY[] = "driftPpm";
+constexpr int32_t DRIFT_SAVE_THRESHOLD_PPM = 200;
+
+// Before the drift had its own place: the gateway's first, measured against
+// network time. Moved over once.
+bool takeOldDriftPpm(const char* oldNamespace, int32_t& driftPpm) {
+    Preferences store;
+    store.begin(oldNamespace, false);
+    const bool found = store.isKey(DRIFT_KEY);
+    if (found) {
+        driftPpm = store.getInt(DRIFT_KEY, 0);
+        store.remove(DRIFT_KEY);
+    }
+    store.end();
+    return found;
+}
+}  // namespace
 
 int64_t epochMsNow() {
     struct timeval now;
@@ -65,6 +87,33 @@ int32_t blendDriftPpm(int32_t currentPpm, bool hasCurrent, int32_t measuredPpm) 
         return measuredPpm;
     }
     return static_cast<int32_t>((static_cast<int64_t>(currentPpm) + measuredPpm) / 2);
+}
+
+bool loadBoardDriftPpm(int32_t& driftPpm) {
+    Preferences store;
+    store.begin(DRIFT_NAMESPACE, false);
+    const bool saved = store.isKey(DRIFT_KEY);
+    if (saved) {
+        driftPpm = store.getInt(DRIFT_KEY, 0);
+    }
+    store.end();
+    if (saved) {
+        return true;
+    }
+    if (takeOldDriftPpm("credentials", driftPpm) || takeOldDriftPpm("leaf", driftPpm)) {
+        saveBoardDriftPpm(driftPpm);
+        return true;
+    }
+    return false;
+}
+
+void saveBoardDriftPpm(int32_t driftPpm) {
+    Preferences store;
+    store.begin(DRIFT_NAMESPACE, false);
+    if (!store.isKey(DRIFT_KEY) || abs(driftPpm - store.getInt(DRIFT_KEY, 0)) > DRIFT_SAVE_THRESHOLD_PPM) {
+        store.putInt(DRIFT_KEY, driftPpm);
+    }
+    store.end();
 }
 
 }  // namespace sbinmesh

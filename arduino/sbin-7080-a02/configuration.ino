@@ -576,17 +576,17 @@ void loadDeviceSettings() {
     if (meshAwakeWindowSeconds == 0 || meshAwakeWindowSeconds > MAX_MESH_AWAKE_WINDOW_SECONDS) {
         meshAwakeWindowSeconds = DEFAULT_MESH_AWAKE_WINDOW_SECONDS;
     }
-    if (!clockDriftLoaded) {
-        driftPpm = preferences.getInt("driftPpm", 0);
-        driftMeasured = preferences.isKey("driftPpm");
-        clockDriftLoaded = true;
-    }
     scaleZeroSet = preferences.isKey("scaleZero");
     scaleZero = preferences.getInt("scaleZero", 0);
     scaleCountsPerGram = preferences.getFloat("scaleFactor", 0.0f);
     setupLocationPending = preferences.getBool("setupLoc", false);
     bool hasStoredLocation = preferences.isKey("gpsEpoch");
     preferences.end();
+    if (!clockDriftLoaded) {
+        driftPpm = 0;
+        driftMeasured = sbinmesh::loadBoardDriftPpm(driftPpm);
+        clockDriftLoaded = true;
+    }
     loadMeshKeys();
 
     hasGpsFix = hasStoredLocation &&

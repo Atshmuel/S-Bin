@@ -53,4 +53,11 @@ DriftMeasurement measureDriftPpm(int64_t deviceEpoch,
 // temperature noise; the first measurement is used as is.
 int32_t blendDriftPpm(int32_t currentPpm, bool hasCurrent, int32_t measuredPpm);
 
+// The drift in flash. It is the chip's, not the bin's: one value for a gateway
+// and a leaf alike, in a place of its own, so a device reset does not lose it
+// (only erasing the flash does). False when this chip has none yet.
+bool loadBoardDriftPpm(int32_t& driftPpm);
+// Rewritten only when the estimate moved, to spare the flash.
+void saveBoardDriftPpm(int32_t driftPpm);
+
 }  // namespace sbinmesh

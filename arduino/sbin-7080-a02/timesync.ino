@@ -14,8 +14,6 @@ namespace {
 constexpr int64_t MIN_DRIFT_MEASUREMENT_SECONDS = 1800;
 // The internal RC oscillator is specified to ±5%; measured so far up to ~1.4%.
 constexpr int32_t MAX_ABS_DRIFT_PPM = 60000;
-// Flash is rewritten only when the estimate moves this much.
-constexpr int32_t DRIFT_SAVE_THRESHOLD_PPM = 200;
 // A limit that matches the server's validation of the report's clock error.
 constexpr int64_t MAX_REPORTED_CLOCK_ERROR_SECONDS = 86400;
 // A wake further off than this is not that slot's wake; it is not logged.
@@ -97,11 +95,5 @@ void recordClockDrift(time_t deviceEpoch, time_t referenceEpoch) {
         static_cast<long>(driftPpm)
     );
 
-    preferences.begin("credentials", false);
-    const bool hasSavedDrift = preferences.isKey("driftPpm");
-    const int32_t savedDriftPpm = preferences.getInt("driftPpm", 0);
-    if (!hasSavedDrift || abs(driftPpm - savedDriftPpm) > DRIFT_SAVE_THRESHOLD_PPM) {
-        preferences.putInt("driftPpm", driftPpm);
-    }
-    preferences.end();
+    sbinmesh::saveBoardDriftPpm(driftPpm);
 }
