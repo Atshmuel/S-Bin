@@ -45,14 +45,13 @@ void setup() {
     const bool modemReady = initializeModem();
     stageTimes.modemMs = millis() - stageStartedAt;
     if (!modemReady) {
-        // It cannot report itself (no SIM, or a modem that does not start), so it
-        // reports through another gateway and sleeps to its next slot.
+        // It cannot report itself (no SIM, or a modem that does not start), so
+        // this wake is a leaf's, through another gateway.
         const uint8_t reason = probeSimCard() == SIM_ABSENT ? sbinmesh::DATA_SIM_MISSING
                                                             : sbinmesh::DATA_NO_CELLULAR;
         powerOffModem();
         recordReportOutcome(false);
-        reportThroughAnotherGateway(reason);
-        becomeLeafIfAsked();
+        reportAsLeafUntilNextWake(reason);
         enterDeepSleepUntilNextReport();
     }
     // Two cycles in a row without a report: through another gateway first, at
@@ -60,7 +59,7 @@ void setup() {
     // then its own link as usual.
     const bool reportingThroughMesh = reportsFailedTooOften();
     if (reportingThroughMesh) {
-        reportThroughAnotherGateway(sbinmesh::DATA_NO_CELLULAR);
+        reportThroughAnotherGateway();
         becomeLeafIfAsked();
     }
 

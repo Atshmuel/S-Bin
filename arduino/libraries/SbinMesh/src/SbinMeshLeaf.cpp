@@ -59,6 +59,9 @@ constexpr uint32_t FIRST_RESIDUAL_PPM = 15000;
 // covering 5,000 ppm.
 constexpr uint32_t MIN_RESIDUAL_PPM = 2500;
 constexpr uint32_t LISTEN_SLACK_SECONDS = 5;
+// A wake further than twice the guard plus this before the slot is not that
+// slot's wake: the clock reads the planned wake, a guard before the slot.
+constexpr uint32_t OFF_SLOT_MARGIN_SECONDS = 60;
 constexpr uint8_t SEND_ATTEMPTS = 3;
 constexpr uint32_t ACK_TIMEOUT_MS = 1500;
 constexpr uint8_t MAX_PENDING_READINGS = 4;
@@ -533,6 +536,12 @@ void runLeafCycle(const LeafConfig& leafConfig) {
     }
 
     const bool coldJoin = !clockValid() || nextWakeEpoch == 0;
+    // Awake long before the slot (a gateway that just turned into this leaf,
+    // its result already delivered): nothing to hear until then.
+    if (!coldJoin && static_cast<int64_t>(nextWakeEpoch) - time(nullptr) >
+                         static_cast<int64_t>(2 * guardSeconds + OFF_SLOT_MARGIN_SECONDS)) {
+        sleepUntilNextSlot();
+    }
     uint32_t listenMs = COLD_JOIN_LISTEN_MS;
     if (!coldJoin) {
         const int64_t listenUntilMs = (static_cast<int64_t>(nextWakeEpoch) + guardSeconds +

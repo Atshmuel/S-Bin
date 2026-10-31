@@ -343,6 +343,16 @@ void enterDeepSleepUntilNextReport() {
     uint64_t sleepSeconds = 0;
     uint32_t leadSeconds = 0;
 
+    // A slot that passed with no reply from the server: the pattern continues,
+    // so this device is back for the next one.
+    if (clockValid && wakeEpoch > 0 && wakeEpoch <= now && slotPeriodSeconds > 0) {
+        wakeEpoch += ((now - wakeEpoch) / slotPeriodSeconds + 1) * slotPeriodSeconds;
+        nextWakeEpoch = wakeEpoch;
+        preferences.begin("credentials", false);
+        preferences.putULong64("nextWake", nextWakeEpoch);
+        preferences.end();
+    }
+
     // A stored wake further ahead than any schedule is stale; the server's
     // sleep length replaces it below.
     if (clockValid && wakeEpoch > now && wakeEpoch - now <= sbinmesh::MAX_WAKE_AHEAD_SECONDS) {

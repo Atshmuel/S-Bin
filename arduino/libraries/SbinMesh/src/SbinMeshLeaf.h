@@ -54,7 +54,8 @@ struct LeafExchange {
     uint32_t nextWakeEpoch;  // the slot the beacon announced, 0 without one
 };
 
-// One delivery as a leaf, for a gateway that cannot reach the server: listens
+// One delivery as a leaf, for a gateway whose own link is failing but which
+// tries it again this wake (without a modem, a wake is runLeafCycle): listens
 // up to listenMs for another gateway's beacon, sends the queued readings and
 // returns, leaving the sleep to the caller. A reading not delivered stays
 // queued (in RTC memory) for the next try.

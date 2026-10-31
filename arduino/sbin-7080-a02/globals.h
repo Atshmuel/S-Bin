@@ -54,9 +54,9 @@ constexpr uint32_t USB_LOG_RECONNECT_WAIT_MS = 3000;
 
 // This firmware's version, reported in every diagnostics block (semver; bump
 // it by hand for every flash).
-constexpr char FIRMWARE_VERSION[] = "2.3.0";
+constexpr char FIRMWARE_VERSION[] = "2.3.1";
 // The same as numbers, for a leaf's diagnostics (keep the two in step).
-constexpr uint8_t FIRMWARE_VERSION_NUMBERS[3] = {2, 3, 0};
+constexpr uint8_t FIRMWARE_VERSION_NUMBERS[3] = {2, 3, 1};
 
 // The S-Bin servers (2i): registration over HTTPS, reports over MQTT with TLS
 // on the private broker, both checked against SBIN_CA_FILE in the modem.
@@ -282,12 +282,14 @@ extern bool becomeLeafAfterThisCycle;
 void becomeLeafIfAsked();
 [[noreturn]] void runAsLeaf();
 sbinmesh::LeafConfig makeLeafConfig(const sbinmesh::LeafKeys& keys);
+[[noreturn]] void runLeafCycleWith(const sbinmesh::LeafConfig& config);
 extern uint8_t leafFallbackFlags;
 // Reporting through another gateway (fallback.ino).
 bool ownLeafKeys(sbinmesh::LeafKeys& keys);
 bool reportsFailedTooOften();
 void recordReportOutcome(bool reportSent);
-bool reportThroughAnotherGateway(uint8_t reasonFlag);
+void reportAsLeafUntilNextWake(uint8_t reasonFlag);
+bool reportThroughAnotherGateway();
 int getDistanceMm();
 bool maintainCellularConnection();
 bool startConfigurationPortal();

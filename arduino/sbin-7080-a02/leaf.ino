@@ -188,7 +188,15 @@ sbinmesh::LeafConfig makeLeafConfig(const sbinmesh::LeafKeys& keys) {
     config.keys = keys;
     config.hooks.fillReading = fillLeafReading;
     config.hooks.runInstruction = runLeafInstruction;
+    config.hooks.beforeSleep = prepareLeafSleep;
     return config;
+}
+
+void runLeafCycleWith(const sbinmesh::LeafConfig& config) {
+    // The config must outlive the cycle, which never returns.
+    static sbinmesh::LeafConfig leafConfig;
+    leafConfig = config;
+    sbinmesh::runLeafCycle(leafConfig);
 }
 
 void runAsLeaf() {
@@ -221,9 +229,5 @@ void runAsLeaf() {
     }
     sbinmesh::LeafConfig config = makeLeafConfig(keys);
     config.hooks.afterDelivery = refreshLeafLocation;
-    config.hooks.beforeSleep = prepareLeafSleep;
-    // The config must outlive the cycle, which never returns.
-    static sbinmesh::LeafConfig leafConfig;
-    leafConfig = config;
-    sbinmesh::runLeafCycle(leafConfig);
+    runLeafCycleWith(config);
 }
