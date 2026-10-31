@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanFaults, describeFaults } from '../utils/faults.js';
+import { cleanFaults, describeFaults, FAULT_CODES, ROLE_CHANGE_CODES } from '../utils/faults.js';
 
 describe('cleanFaults', () => {
     test('keeps known device codes with their numbers in range', () => {
@@ -34,5 +34,15 @@ describe('describeFaults', () => {
     test('is null without any', () => {
         assert.equal(describeFaults([]), null);
         assert.equal(describeFaults(undefined), null);
+    });
+});
+
+describe('role changes', () => {
+    test('are system codes: a device cannot send them, and each has its words', () => {
+        for (const code of ROLE_CHANGE_CODES) {
+            assert.ok(FAULT_CODES.includes(code));
+            assert.deepEqual(cleanFaults([{ code }]), []);
+            assert.ok(describeFaults([{ code }]));
+        }
     });
 });

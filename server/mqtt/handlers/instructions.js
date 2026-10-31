@@ -7,6 +7,7 @@ import { getNextReportSchedule } from "../../utils/deviceSchedule.js";
 import { INSTRUCTION_RESULT_MAX_LENGTH, LEAF_INSTRUCTION_TYPES, MAX_LEAF_INSTRUCTIONS } from "../../utils/constants.js";
 import { generateRandomToken } from "../../utils/helpers.js";
 import { deleteDeviceAccounts } from "../brokerAccounts.js";
+import { recordRoleChange } from "../../db/service/roleChangeService.js";
 
 // The oldest pending command of each leaf this gateway relays for.
 async function pendingLeafInstructions(gateway) {
@@ -37,9 +38,10 @@ async function demoteToLeaf(binId) {
     const bin = await binModel.findOneAndUpdate(
         { _id: binId, meshOnly: { $ne: true } },
         { $set: { meshOnly: true, deviceKey: generateRandomToken() } },
-        { projection: { macAddress: 1 } }
+        { projection: { macAddress: 1, status: 1 } }
     );
     if (bin) {
+        await recordRoleChange(bin, "became_leaf");
         await deleteDeviceAccounts([bin.macAddress]);
         console.log(`[Mesh] ${bin.macAddress} became a mesh leaf.`);
     }

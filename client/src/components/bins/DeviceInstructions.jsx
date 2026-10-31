@@ -98,6 +98,8 @@ function DeviceInstructions({ bin, className }) {
     const instructionTypes = INSTRUCTION_TYPES.filter((type) =>
         !(isGateway(bin) && CALIBRATION_TYPES.includes(type)) && !(viaMesh && OWN_MODEM_TYPES.includes(type)) &&
         !(type === "become_leaf" && (bin.meshOnly || !isOwner)));
+    // The SIM may have been taken out on purpose: the owner can then make it a leaf.
+    const hasNoSim = isOwner && !bin.meshOnly && (bin.status?.faults ?? []).some((fault) => fault.code === "sim_missing");
     const [instructionType, setInstructionType] = useState(instructionTypes[0]);
     const [durationMinutes, setDurationMinutes] = useState("5");
     const [scaleGrams, setScaleGrams] = useState("1000");
@@ -162,6 +164,11 @@ function DeviceInstructions({ bin, className }) {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
+                    {hasNoSim && (
+                        <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                            {t("components.deviceInstructions.noSimHint")}
+                        </p>
+                    )}
                     <div className="flex flex-col gap-2">
                         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
                             <div className="flex flex-col gap-2 sm:w-72">

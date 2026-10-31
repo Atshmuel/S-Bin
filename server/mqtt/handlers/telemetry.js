@@ -12,6 +12,7 @@ import { organizationThresholds } from "../../db/service/thresholdService.js";
 import { batteryLevel, fullnessLevel } from "../../utils/thresholds.js";
 import { cleanDiagnostics } from "../../utils/diagnostics.js";
 import { cleanFaults } from "../../utils/faults.js";
+import { recordRoleChange } from "../../db/service/roleChangeService.js";
 import { meshKeyUpdateFor } from "../../db/service/meshKeyService.js";
 import { detectIssues, nextIssues } from "../../utils/deviceIssues.js";
 import {
@@ -183,6 +184,14 @@ export async function applyDeviceLog(bin, {
         bin.status.issues = nextIssues(open, detectIssues(diagnostics, bin.status.diagnostics), takenAt);
         bin.status.diagnostics = diagnostics;
         if (diagnostics.firmwareVersion) bin.status.firmwareVersion = diagnostics.firmwareVersion;
+    }
+    // A SIM taken out or put back shows in the gateway's own faults.
+    if (!bin.meshOnly) {
+        const hadNoSim = (bin.status.faults ?? []).some(fault => fault.code === "sim_missing");
+        const hasNoSim = deviceFaults.some(fault => fault.code === "sim_missing");
+        if (hasNoSim !== hadNoSim) {
+            await recordRoleChange(bin, hasNoSim ? "gateway_lost_sim" : "gateway_got_sim");
+        }
     }
     bin.status.health = health;
     bin.status.faults = deviceFaults.length > 0 ? deviceFaults : undefined;

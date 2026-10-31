@@ -2,7 +2,9 @@
 // words them in the user's language, and the server in English only for its
 // emails and the AI overview. A device sends its own (from firmware 1.3.0;
 // older firmware sends an English `message`, kept as it came); the server adds
-// the fullness and battery ones, and its system entries have theirs.
+// the fullness and battery ones, and its system entries have theirs (the role
+// changes: a gateway losing or getting back its SIM, a leaf becoming a gateway
+// and back, so an owner knows when to turn a gateway without a SIM into a leaf).
 
 // A device's own faults, each with how many reporting cycles in a row it has
 // lasted (2: two or more) and, for the distance sensor, the distance it read.
@@ -13,7 +15,9 @@ export const DEVICE_FAULT_CODES = Object.freeze([
 ]);
 export const SERVER_FAULT_CODES = Object.freeze([
     "bin_full", "bin_filling", "battery_critical", "battery_low", "instructions_expired",
+    "gateway_lost_sim", "gateway_got_sim", "became_gateway", "became_leaf",
 ]);
+export const ROLE_CHANGE_CODES = Object.freeze(["gateway_lost_sim", "gateway_got_sim", "became_gateway", "became_leaf"]);
 export const FAULT_CODES = Object.freeze([...DEVICE_FAULT_CODES, ...SERVER_FAULT_CODES]);
 const MAX_FAULT_CYCLES = 2;
 const MIN_FAULT_MM = -1;
@@ -62,6 +66,10 @@ const FAULT_TEXT = Object.freeze({
     scale: ({ cycles }) => `The scale reading failed ${inCycles(cycles)}.`,
     sim_missing: () => "There is no SIM card in the device; it reports through another gateway.",
     cellular_unavailable: () => "The device cannot reach the cellular network; it reports through another gateway.",
+    gateway_lost_sim: () => "The gateway lost its SIM card and now reports through another gateway. If the SIM was taken out on purpose, turn it into a mesh leaf.",
+    gateway_got_sim: () => "The gateway has a SIM card again and reports by itself.",
+    became_gateway: () => "The mesh leaf found a SIM card and became a gateway.",
+    became_leaf: () => "The gateway became a mesh leaf and reports through another gateway.",
     instructions_expired: ({ types }) => `Device did not pick up pending instructions${types?.length ? ` (${types.join(", ")})` : ""} within 3 days; it may be offline or out of coverage.`,
 });
 

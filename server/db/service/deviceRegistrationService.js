@@ -4,6 +4,7 @@ import { generateRandomToken } from "../../utils/helpers.js";
 import { getNextReportSchedule } from "../../utils/deviceSchedule.js";
 import { fromDeviceLocation } from "../../utils/geo.js";
 import { createDeviceAccount, setDeviceAccount } from "../../mqtt/brokerAccounts.js";
+import { recordRoleChange } from "./roleChangeService.js";
 
 const MAC_ADDRESS_PATTERN = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
@@ -29,7 +30,7 @@ export async function registerDevice({ mac, orgId, location, battery, kind = "bi
         return { status: "invalid" };
     }
     if (!await organizationExist(orgId)) return { status: "no_organization" };
-    const existing = await binModel.findOne({ macAddress: mac }, { ownerId: 1, meshOnly: 1 }).lean();
+    const existing = await binModel.findOne({ macAddress: mac }, { ownerId: 1, meshOnly: 1, status: 1 }).lean();
     if (existing && (!existing.meshOnly || String(existing.ownerId) !== String(orgId))) return { status: "exists" };
 
     // Checked above in the device's [lat, lng]; stored as [lng, lat].
@@ -51,6 +52,7 @@ export async function registerDevice({ mac, orgId, location, battery, kind = "bi
             },
         });
         if (modifiedCount === 0) return { status: "exists" };
+        await recordRoleChange(existing, "became_gateway");
         // The leaf's bin may have had an account with its unused key: replaced.
         await setDeviceAccount(mac, deviceKey);
         return registered;

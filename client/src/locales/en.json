@@ -67,6 +67,10 @@
     "scale": "The scale reading failed {{when}}.",
     "sim_missing": "There is no SIM card in the device; it reports through another gateway.",
     "cellular_unavailable": "The device cannot reach the cellular network; it reports through another gateway.",
+    "gateway_lost_sim": "The gateway lost its SIM card and now reports through another gateway. If the SIM was taken out on purpose, turn it into a mesh leaf.",
+    "gateway_got_sim": "The gateway has a SIM card again and reports by itself.",
+    "became_gateway": "The mesh leaf found a SIM card and became a gateway.",
+    "became_leaf": "The gateway became a mesh leaf and reports through another gateway.",
     "instructions_expired": "The device did not pick up its pending commands ({{types}}) within 3 days; it may be offline or out of coverage."
   },
   "severities": {
@@ -1182,6 +1186,7 @@
       "scaleGramsLimit": "Zero the scale first (recalibrate the empty bin), then put an object of known weight in the bin: 100 g to 200 kg. To check the scale afterwards, place a different known weight and request a report.",
       "gramsValue": "{{grams}} g placed",
       "confirmCalibration": "Queue calibration",
+      "noSimHint": "This gateway has no SIM card and reports through another gateway. If the SIM was taken out on purpose, choose \"Turn into a mesh leaf\" below, so the bin is a leaf from now on.",
       "becomeLeafConfirmationTitle": "Turn this gateway into a mesh leaf?",
       "becomeLeafConfirmationDescription": "At its next report the device stops being a gateway and reports through another gateway of the organization, keeping this bin, its settings and calibration. Until then nothing changes. The leaves that report through it lose their mesh window and need another gateway in range. Putting a SIM card in and restarting it makes it a gateway again.",
       "confirmBecomeLeaf": "Turn into a leaf",
