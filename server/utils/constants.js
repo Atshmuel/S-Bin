@@ -379,9 +379,11 @@ export const MESH_KEY_ID_COUNT = 255;
 
 // A leaf without a SIM joins the mesh with a one-time join code from the add-bin
 // wizard (see utils/joinCodes.js): valid this long, bound to the first leaf that
-// uses it, and an organization keeps this many unused ones (the newest).
+// uses it, and an organization keeps this many unused ones (the newest). Many
+// bins can be set up before any joins (a gateway's window comes once a cycle),
+// so this only stops runaway growth; it must be far above a large installation.
 export const JOIN_CODE_TTL_MS = 24 * 60 * 60 * 1000;
-export const MAX_ACTIVE_JOIN_CODES = 20;
+export const MAX_ACTIVE_JOIN_CODES = 500;
 // Wrong proofs for one code before it is deleted.
 export const MAX_JOIN_PROOF_FAILURES = 5;
 
