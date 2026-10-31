@@ -6,9 +6,11 @@
 // real measurements and commands. The modem stays off except for the monthly
 // GPS fix (GNSS needs no SIM), taken after the readings went out.
 //
-// Until a leaf can get its keys over the mesh, they come from mesh_keys.h next
-// to this sketch, made for this board by server/scripts/mesh-keys.mjs (a
-// bench build only; a gateway build needs none).
+// A leaf's mesh keys come, in this order, from the organization key it kept
+// from being a gateway; from mesh_keys.h next to this sketch, made for this
+// board by server/scripts/mesh-keys.mjs (a bench build only); from flash, where
+// a JOIN left them; or from a JOIN, with the join code its setup page took
+// (the add-device wizard makes it), asked of a gateway over the mesh.
 #if __has_include("mesh_keys.h")
 #include "mesh_keys.h"
 #define SBIN_LEAF_HAS_KEYS 1
@@ -21,6 +23,9 @@ uint8_t leafFallbackFlags = 0;
 
 namespace {
 constexpr uint32_t NO_KEYS_RETRY_SLEEP_SECONDS = 15UL * 60UL;
+constexpr uint32_t JOIN_REFUSED_RETRY_SLEEP_SECONDS = 60UL * 60UL;
+// As long as a cold join: a gateway's window comes once a cycle.
+constexpr uint32_t JOIN_LISTEN_MS = 13UL * 60UL * 60UL * 1000UL + 30UL * 60UL * 1000UL;
 constexpr unsigned long LEAF_GPS_TIMEOUT_MS = 300000UL;
 constexpr unsigned long LEAF_GPS_POLL_MS = 5000UL;
 constexpr uint8_t CALIBRATION_ATTEMPTS = 2;
@@ -174,6 +179,30 @@ void refreshLeafLocation() {
     }
 }
 
+// Asks a gateway for this leaf's keys with the join code from its setup page.
+// Returns with them, or sleeps and tries again (the code stays until it works).
+void joinTheMesh(sbinmesh::LeafKeys& keys) {
+    if (joinCode.length() == 0) {
+        enterDeepSleepForSetupRetry(NO_KEYS_RETRY_SLEEP_SECONDS,
+                                    "This leaf has no mesh keys and no join code (add the device again from the app)");
+    }
+    sbinmesh::JoinConfig join = {ownerId.c_str(), joinCode.c_str()};
+    switch (sbinmesh::joinMesh(join, keys, JOIN_LISTEN_MS)) {
+        case sbinmesh::JoinOutcome::JOINED:
+            forgetJoinCode();
+            Serial.println("✅ Joined the mesh: the keys are saved.");
+            return;
+        case sbinmesh::JoinOutcome::REFUSED:
+            enterDeepSleepForSetupRetry(JOIN_REFUSED_RETRY_SLEEP_SECONDS,
+                                        "The server did not accept the join code (used, expired or wrong)");
+        case sbinmesh::JoinOutcome::BAD_SETTINGS:
+            enterDeepSleepForSetupRetry(JOIN_REFUSED_RETRY_SLEEP_SECONDS, "The join code is not valid");
+        case sbinmesh::JoinOutcome::NO_ANSWER:
+            break;
+    }
+    enterDeepSleepForSetupRetry(NO_KEYS_RETRY_SLEEP_SECONDS, "No gateway answered the join");
+}
+
 void prepareLeafSleep() {
     powerDownScale();
     cutModemPower();
@@ -214,7 +243,8 @@ void runAsLeaf() {
     }
 
     // A leaf that was a gateway keeps the organization key and derives its own
-    // keys from it; one that never was uses the bench's mesh_keys.h.
+    // keys from it; a bench build has mesh_keys.h; otherwise the keys a JOIN
+    // left in flash, or a JOIN now.
     sbinmesh::LeafKeys keys = {};
     if (!ownLeafKeys(keys)) {
 #if SBIN_LEAF_HAS_KEYS
@@ -223,8 +253,9 @@ void runAsLeaf() {
         memcpy(keys.beaconKey, MESH_BEACON_KEY, sbinmesh::KEY_LENGTH);
         keys.keyId = MESH_KEY_ID;
 #else
-        enterDeepSleepForSetupRetry(NO_KEYS_RETRY_SLEEP_SECONDS,
-                                    "This leaf has no mesh keys (build it with mesh_keys.h)");
+        if (!sbinmesh::loadJoinedKeys(keys)) {
+            joinTheMesh(keys);
+        }
 #endif
     }
     sbinmesh::LeafConfig config = makeLeafConfig(keys);

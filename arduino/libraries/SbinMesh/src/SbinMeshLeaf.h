@@ -53,6 +53,27 @@ struct LeafConfig {
     LeafHooks hooks;
 };
 
+// A leaf without keys asks a gateway for them (SbinMeshJoin.h): its organization
+// ID and the one-time join code from its setup page (32 hex characters).
+struct JoinConfig {
+    const char* organizationId;
+    const char* joinCode;
+};
+
+enum class JoinOutcome : uint8_t {
+    JOINED,         // keys is filled and kept in flash (saveJoinedKeys)
+    NO_ANSWER,      // no gateway window in time, or no answer to the JOIN: try again later
+    REFUSED,        // the server did not accept it (code used, expired or wrong), as far as an unchecked reply says
+    BAD_SETTINGS,   // the organization ID or the code is not valid
+};
+
+// Listens up to listenMs for a gateway's beacon (which it cannot check, so it only
+// uses it to know a window is open), sends one JOIN per window and waits for the
+// answer. On JOINED the gateway's window is usually still open, so a leaf cycle
+// started at once cold-joins on its authenticated beacons and delivers its
+// first reading in the same window.
+JoinOutcome joinMesh(const JoinConfig& config, LeafKeys& keys, uint32_t listenMs);
+
 // One wake, from the boot to the deep sleep; it never returns.
 [[noreturn]] void runLeafCycle(const LeafConfig& config);
 

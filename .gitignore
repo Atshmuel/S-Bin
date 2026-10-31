@@ -36,6 +36,8 @@ Thumbs.db
 # Claude Code settings are per developer.
 .claude/
 
+.codegraph
+
 # OSRM's road data (prepared on the VM by routing/prepare-osrm.sh) and
 # VROOM's access log.
 routing/osrm/*
@@ -44,3 +46,4 @@ routing/vroom-conf/access.log
 
 # The mesh keys of a bench leaf (made by server/scripts/mesh-keys.mjs): secrets
 arduino/**/mesh_keys.h
+arduino/**/join_code.h

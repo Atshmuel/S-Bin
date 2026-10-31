@@ -247,8 +247,10 @@ struct LeafInstruction {
 constexpr uint8_t MAX_LEAF_INSTRUCTIONS = 4;
 
 // A leaf without keys that asked to join in this window, and the server's
-// answer to hand back (RAM: a JOIN is answered in the window it came in).
-constexpr uint8_t MAX_JOIN_REQUESTS = 4;
+// answer to hand back (RAM: a JOIN is answered in the window it came in). The
+// server answers one at a time, about a second or two each, so dozens of leaves
+// started together are all answered in one window of about two minutes.
+constexpr uint8_t MAX_JOIN_REQUESTS = 64;
 
 enum RelayUploadResult {
     RELAY_ACCEPTED,

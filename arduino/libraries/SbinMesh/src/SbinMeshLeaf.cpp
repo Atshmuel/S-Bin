@@ -10,6 +10,7 @@
 
 #include "SbinClockDrift.h"
 #include "SbinMesh.h"
+#include "SbinMeshJoin.h"
 
 namespace sbinmesh {
 
@@ -66,6 +67,16 @@ constexpr uint32_t LISTEN_SLACK_SECONDS = 5;
 // the radio on for the rest of the window, so a leaf does it only when its
 // slots are this far apart: a command otherwise waits one cycle, which is short.
 constexpr uint32_t LATE_COMMAND_MIN_SLOT_GAP_SECONDS = 3UL * 60UL * 60UL;
+// A JOIN: how long the answer is awaited (the gateway keeps its window open for
+// it, and answers the JOINs of many leaves one at a time), the delay before
+// sending, random so leaves started together do not transmit at the same moment
+// (the gateway's radio queue holds 16 frames), and how often the same JOIN is
+// sent again while waiting, in case the first was lost (the gateway ignores a
+// repeat of one it holds).
+constexpr uint32_t JOIN_REPLY_WAIT_MS = 120000;
+constexpr uint32_t JOIN_JITTER_MAX_MS = 3000;
+constexpr uint32_t JOIN_RESEND_MS = 20000;
+constexpr uint8_t JOIN_SEND_ATTEMPTS = 3;
 // A wake further than twice the guard plus this before the slot is not that
 // slot's wake: the clock reads the planned wake, a guard before the slot.
 constexpr uint32_t OFF_SLOT_MARGIN_SECONDS = 60;
@@ -541,6 +552,119 @@ void forgetJoinedKeys() {
     store.begin(JOINED_KEYS_NAMESPACE, false);
     store.remove(JOINED_KEYS_ENTRY);
     store.end();
+}
+
+namespace {
+bool hexToBytes(const char* text, uint8_t* out, size_t bytes) {
+    if (text == nullptr || strlen(text) != bytes * 2) {
+        return false;
+    }
+    for (size_t i = 0; i < bytes; i++) {
+        unsigned value = 0;
+        if (sscanf(text + 2 * i, "%2x", &value) != 1) {
+            return false;
+        }
+        out[i] = static_cast<uint8_t>(value);
+    }
+    return true;
+}
+
+MeshAuth joiningAuth;
+}  // namespace
+
+JoinOutcome joinMesh(const JoinConfig& joinConfig, LeafKeys& keys, uint32_t listenMs) {
+    uint8_t orgId[ORG_ID_LENGTH];
+    uint8_t code[JOIN_CODE_LENGTH];
+    if (!hexToBytes(joinConfig.organizationId, orgId, ORG_ID_LENGTH) || !parseJoinCode(joinConfig.joinCode, code)) {
+        return JoinOutcome::BAD_SETTINGS;
+    }
+    const Key joinKey = deriveJoinKey(code);
+    uint8_t codeId[JOIN_CODE_ID_LENGTH];
+    joinCodeId(joinKey, codeId);
+    if (!radio.begin(joinConfig.organizationId)) {
+        return JoinOutcome::NO_ANSWER;
+    }
+    joiningAuth.useJoining(radio.macAddress());
+    radio.setAuth(&joiningAuth);
+    Serial.printf("🔑 No mesh keys: listening up to %lu s for a gateway window to join.\n",
+                  static_cast<unsigned long>(listenMs / 1000));
+
+    JoinOutcome outcome = JoinOutcome::NO_ANSWER;
+    uint32_t lastWindowNonce = 0;
+    bool askedInAWindow = false;
+    const uint32_t startedAt = millis();
+    ReceivedFrame frame;
+    while (outcome == JoinOutcome::NO_ANSWER && millis() - startedAt < listenMs) {
+        if (!radio.receive(frame, 100)) {
+            continue;
+        }
+        const BeaconPacket* beacon = frame.as<BeaconPacket>(PACKET_BEACON);
+        // One JOIN per window of a gateway (its nonce names the window).
+        if (beacon == nullptr || beacon->hopsToGateway != 0 ||
+            (askedInAWindow && beacon->cycleNonce == lastWindowNonce)) {
+            continue;
+        }
+        const uint32_t windowNonce = beacon->cycleNonce;
+
+        JoinPacket join = {};
+        radio.initHeader(join.header, PACKET_JOIN);
+        memcpy(join.orgId, orgId, ORG_ID_LENGTH);
+        memcpy(join.codeId, codeId, JOIN_CODE_ID_LENGTH);
+        const uint32_t randomWords[2] = {esp_random(), esp_random()};
+        memcpy(join.nonce, randomWords, JOIN_NONCE_LENGTH);
+        joinProof(joinKey, radio.macAddress(), orgId, join.nonce, join.proof);
+        delay(esp_random() % JOIN_JITTER_MAX_MS);
+        bool sent = false;
+        for (uint8_t attempt = 0; attempt < JOIN_SEND_ATTEMPTS && !sent; attempt++) {
+            sent = radio.sendTo(frame.sender, &join, sizeof(join));
+        }
+        if (!sent) {
+            Serial.println("⚠️ The JOIN did not reach the gateway; trying on its next beacon.");
+            continue;
+        }
+        askedInAWindow = true;
+        lastWindowNonce = windowNonce;
+        uint8_t joinGateway[MAC_LENGTH];
+        memcpy(joinGateway, frame.sender, MAC_LENGTH);
+        Serial.println("🔑 JOIN sent; waiting for the answer.");
+
+        const uint32_t sentAt = millis();
+        uint32_t lastSentAt = sentAt;
+        while (millis() - sentAt < JOIN_REPLY_WAIT_MS && outcome == JoinOutcome::NO_ANSWER) {
+            if (millis() - lastSentAt >= JOIN_RESEND_MS) {
+                radio.sendTo(joinGateway, &join, sizeof(join));
+                lastSentAt = millis();
+            }
+            if (!radio.receive(frame, 100)) {
+                continue;
+            }
+            const JoinReplyPacket* reply = frame.as<JoinReplyPacket>(PACKET_JOIN_REPLY);
+            if (reply == nullptr || memcmp(reply->nonce, join.nonce, JOIN_NONCE_LENGTH) != 0 ||
+                !macEquals(reply->leafMac, radio.macAddress())) {
+                continue;
+            }
+            if (reply->status == JOIN_REFUSED) {
+                outcome = JoinOutcome::REFUSED;
+                break;
+            }
+            JoinedKeys opened;
+            if (!openJoinReply(joinKey, radio.macAddress(), join.nonce, *reply, opened)) {
+                Serial.println("⚠️ An answer to the JOIN did not check out; ignored.");
+                continue;
+            }
+            memcpy(keys.mac, radio.macAddress(), MAC_LENGTH);
+            memcpy(keys.leafKey, opened.leafKey.bytes, KEY_LENGTH);
+            memcpy(keys.beaconKey, opened.beaconKey.bytes, KEY_LENGTH);
+            keys.keyId = opened.keyId;
+            saveJoinedKeys(keys);
+            outcome = JoinOutcome::JOINED;
+        }
+        if (outcome == JoinOutcome::NO_ANSWER) {
+            Serial.println("⚠️ No answer to the JOIN; waiting for the gateway's next window.");
+        }
+    }
+    radio.end();
+    return outcome;
 }
 
 LeafExchange runLeafExchange(const LeafConfig& leafConfig, uint32_t listenMs) {
