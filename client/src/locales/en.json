@@ -700,7 +700,8 @@
           "fillSensor": "Fill sensor",
           "battery": "Battery",
           "scale": "Scale",
-          "gps": "GPS"
+          "gps": "GPS",
+          "connectivity": "Connectivity"
         }
       }
     },

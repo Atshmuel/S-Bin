@@ -256,7 +256,7 @@ export function ConnectivityCard() {
     )
 }
 
-const HEALTH_CAUSES = ["fillSensor", "battery", "scale", "gps"]
+const HEALTH_CAUSES = ["fillSensor", "battery", "scale", "gps", "connectivity"]
 
 export function HealthCausesCard() {
     const { t } = useTranslation()

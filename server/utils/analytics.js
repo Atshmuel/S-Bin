@@ -176,6 +176,7 @@ const HEALTH_CAUSES = Object.freeze({
     battery: /AXP2101|Battery level/,
     scale: /HX711/,
     gps: /GNSS/,
+    connectivity: /SIM card|cellular network/i,
 });
 
 // The causes of a log's problems: from its fault codes (see utils/faults.js)

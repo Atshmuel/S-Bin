@@ -153,6 +153,11 @@ describe('healthCauses', () => {
             ['fillSensor', 'battery']);
         assert.deepEqual(healthCauses({ faults: [{ code: 'scale', cycles: 2 }] }), ['scale']);
     });
+    test('counts a device that cannot reach the server as a connectivity problem', () => {
+        assert.deepEqual(healthCauses({ faults: [{ code: 'sim_missing' }] }), ['connectivity']);
+        assert.deepEqual(healthCauses({ faults: [{ code: 'cellular_unavailable', cycles: 2 }, { code: 'sim_missing' }] }), ['connectivity']);
+        assert.deepEqual(healthCauses({ faults: [{ code: 'sim_missing' }, { code: 'battery_low' }] }), ['connectivity', 'battery']);
+    });
     test('reads an older log\'s English message', () => {
         assert.deepEqual(healthCauses({ message: 'A02 not responding. Battery level is low.' }), ['fillSensor', 'battery']);
         assert.deepEqual(healthCauses({ message: 'HX711 not responding.' }), ['scale']);

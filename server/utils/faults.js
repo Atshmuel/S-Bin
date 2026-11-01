@@ -50,6 +50,8 @@ export const FAULT_CAUSES = Object.freeze({
     battery_critical: "battery",
     scale: "scale",
     gps: "gps",
+    sim_missing: "connectivity",
+    cellular_unavailable: "connectivity",
 });
 
 const inCycles = cycles => cycles >= MAX_FAULT_CYCLES ? "in 2 or more consecutive reporting cycles" : "in the previous reporting cycle";

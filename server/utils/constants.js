@@ -42,7 +42,7 @@ A JSON fleet briefing, computed by the system from the devices' reports:
   is offline after it missed its scheduled reports.
 - "totals": counts across the fleet now.
 - "lastSevenDays": emptyings, average fullness when emptied, kg collected, and
-  problem reports by cause (fillSensor, battery, scale, gps).
+  problem reports by cause (fillSensor, battery, scale, gps, connectivity).
 - "devices": one entry per device, the most urgent first. "needsAttention"
   lists why: full, maintenance (service date passed), offline, battery, health.
   "hoursUntilCollectionNeeded" (until the bin reaches the critical fullness; 0
