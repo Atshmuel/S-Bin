@@ -81,6 +81,20 @@ public:
     // (the buffer needs TAG_LENGTH spare bytes) and returns the new length, or 0
     // when this node's role cannot sign it.
     size_t signBeacon(uint8_t* packet, size_t bodyLength) const;               // a gateway
+    // A gateway's beacon for a generation it holds (the current or the one before):
+    // after a rotation leaves that have not got the new keys hear only the old.
+    size_t signBeaconFor(uint8_t* packet, size_t bodyLength, uint8_t keyId) const;
+    bool hasPreviousKey() const { return role_ == Role::Gateway && hasPrevious_; }
+    uint8_t previousKeyId() const { return previousKeyId_; }
+    // A leaf's reading came with keys of the generation before this gateway's.
+    bool isPreviousKeyId(uint8_t keyId) const {
+        return role_ == Role::Gateway && hasPrevious_ && keyId == previousKeyId_ && keyId != keyId_;
+    }
+    // The update that gives this leaf the current generation's keys, sealed under the
+    // key it holds from the generation before (the IV is random, the caller's).
+    // False unless that generation is the one before.
+    bool makeKeyUpdate(const uint8_t leafMac[MAC_LENGTH], uint8_t oldKeyId,
+                       const uint8_t iv[JOIN_IV_LENGTH], KeyUpdatePacket& out) const;
     size_t signAck(uint8_t* packet, size_t bodyLength, uint8_t keyId) const;   // a gateway, with the key of the DATA it answers
     size_t signData(uint8_t* packet, size_t bodyLength) const;                 // a leaf
 

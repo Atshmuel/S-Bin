@@ -1,4 +1,5 @@
 #include "SbinMeshAuth.h"
+#include "SbinMeshKeyUpdate.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -142,6 +143,24 @@ size_t MeshAuth::signBeacon(uint8_t* packet, size_t bodyLength) const {
     return sign(packet, bodyLength, deriveBeaconKey(organizationKey_), keyId_);
 }
 
+size_t MeshAuth::signBeaconFor(uint8_t* packet, size_t bodyLength, uint8_t keyId) const {
+    Key organizationKey;
+    if (role_ != Role::Gateway || bodyLength != sizeof(BeaconPacket) ||
+        !organizationKeyFor(keyId, organizationKey)) {
+        return 0;
+    }
+    return sign(packet, bodyLength, deriveBeaconKey(organizationKey), keyId);
+}
+
+bool MeshAuth::makeKeyUpdate(const uint8_t leafMac[MAC_LENGTH], uint8_t oldKeyId,
+                             const uint8_t iv[JOIN_IV_LENGTH], KeyUpdatePacket& out) const {
+    if (!isPreviousKeyId(oldKeyId)) {
+        return false;
+    }
+    return sealKeyUpdate(deriveLeafKey(previousKey_, leafMac), leafMac, oldKeyId, iv, keyId_,
+                         deriveLeafKey(organizationKey_, leafMac), deriveBeaconKey(organizationKey_), out);
+}
+
 size_t MeshAuth::signAck(uint8_t* packet, size_t bodyLength, uint8_t keyId) const {
     Key organizationKey;
     if (role_ != Role::Gateway || bodyLength != sizeof(AckPacket) ||
@@ -227,6 +246,16 @@ AuthResult MeshAuth::check(const uint8_t* frame, size_t length) const {
             }
             // Not signed (the leaf has no key); the server checks its proof.
             return role_ == Role::Gateway ? AuthResult::OK : AuthResult::NOT_FOR_ME;
+        }
+        case PACKET_KEY_UPDATE: {
+            if (length != sizeof(KeyUpdatePacket)) {
+                return AuthResult::BAD_LENGTH;
+            }
+            // Sealed under the leaf's own key (SbinMeshKeyUpdate.h), which the leaf checks.
+            const KeyUpdatePacket* update = reinterpret_cast<const KeyUpdatePacket*>(frame);
+            return role_ == Role::Leaf && memcmp(update->leafMac, ownMac_, MAC_LENGTH) == 0
+                ? AuthResult::OK
+                : AuthResult::NOT_FOR_ME;
         }
         case PACKET_JOIN_REPLY: {
             if (length != sizeof(JoinReplyPacket)) {

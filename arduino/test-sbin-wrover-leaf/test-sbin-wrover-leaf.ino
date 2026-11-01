@@ -117,8 +117,10 @@ LeafKeys findKeys() {
     memcpy(keys.leafKey, MESH_LEAF_KEY, KEY_LENGTH);
     memcpy(keys.beaconKey, MESH_BEACON_KEY, KEY_LENGTH);
     keys.keyId = MESH_KEY_ID;
-#else
-    if (!loadJoinedKeys(keys)) {
+#endif
+    // Keys a JOIN or a key rotation left in flash win when they are a later generation.
+    const bool haveKeys = loadNewerJoinedKeys(keys) || HAS_BENCH_KEYS;
+    if (!haveKeys) {
 #if HAS_JOIN_CODE
         constexpr uint32_t JOIN_LISTEN_MS = 13UL * 60UL * 60UL * 1000UL + 30UL * 60UL * 1000UL;
         constexpr uint64_t RETRY_SLEEP_SECONDS = 15ULL * 60ULL;
@@ -132,7 +134,6 @@ LeafKeys findKeys() {
         Serial.println("✅ Joined the mesh: the keys are saved.");
 #endif
     }
-#endif
     return keys;
 }
 }  // namespace

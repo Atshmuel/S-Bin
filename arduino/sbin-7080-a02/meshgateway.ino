@@ -41,6 +41,10 @@ constexpr unsigned long JOIN_RESULT_TIMEOUT_MS = 10000;
 // The reply goes to the leaf until the radio confirms it, this many tries.
 constexpr uint8_t MAX_JOIN_REPLY_ATTEMPTS = 8;
 constexpr uint32_t JOIN_REPLY_INTERVAL_MS = 500;
+// After a key rotation a leaf that still has the generation before gets the new
+// keys in a KEY_UPDATE (SbinMeshKeyUpdate.h), sent until the radio confirms it.
+constexpr uint8_t MAX_KEY_UPDATE_ATTEMPTS = 6;
+constexpr uint32_t KEY_UPDATE_INTERVAL_MS = 500;
 
 MeshRadio meshRadio;
 // The organization's key and this window's nonce (2m): every beacon and ACK
@@ -80,6 +84,16 @@ struct JoinReplySlot {
     uint8_t attempts;
     uint32_t lastAttemptMs;
 };
+// The leaves of the generation before that wait for their new keys in this window.
+struct KeyUpdateSlot {
+    uint8_t mac[MAC_LENGTH];
+    uint8_t oldKeyId;
+    bool delivered;
+    uint8_t attempts;
+    uint32_t lastAttemptMs;
+};
+KeyUpdateSlot keyUpdates[MAX_JOIN_REQUESTS];
+uint8_t keyUpdateCount = 0;
 JoinRequestSlot joinRequests[MAX_JOIN_REQUESTS];
 uint8_t joinRequestCount = 0;
 JoinReplySlot joinReplies[MAX_JOIN_REQUESTS];
@@ -205,6 +219,25 @@ void extendMeshWindow(uint32_t ms) {
     }
 }
 
+// A reading came with the generation before this gateway's keys: its leaf is to be
+// given the new ones (once a window).
+void rememberKeyUpdate(const uint8_t mac[MAC_LENGTH], uint8_t oldKeyId) {
+    xSemaphoreTake(relayQueueMutex, portMAX_DELAY);
+    bool known = false;
+    for (uint8_t i = 0; i < keyUpdateCount && !known; i++) {
+        known = macEquals(keyUpdates[i].mac, mac);
+    }
+    if (!known && keyUpdateCount < MAX_JOIN_REQUESTS) {
+        KeyUpdateSlot& slot = keyUpdates[keyUpdateCount++];
+        memcpy(slot.mac, mac, MAC_LENGTH);
+        slot.oldKeyId = oldKeyId;
+        slot.delivered = false;
+        slot.attempts = 0;
+        slot.lastAttemptMs = 0;
+    }
+    xSemaphoreGive(relayQueueMutex);
+}
+
 bool relayQueueContains(const uint8_t origin[MAC_LENGTH], uint32_t messageId) {
     xSemaphoreTake(relayQueueMutex, portMAX_DELAY);
     bool found = false;
@@ -280,6 +313,15 @@ void sendBeacon() {
     if (length > 0) {
         meshRadio.broadcast(frame, length);
     }
+    // After a rotation the leaves that have not got the new keys yet hear only the
+    // beacons of the generation before: they are sent too, while it is held.
+    if (meshAuth.hasPreviousKey()) {
+        memcpy(frame, &beacon, sizeof(beacon));
+        const size_t previousLength = meshAuth.signBeaconFor(frame, sizeof(beacon), meshAuth.previousKeyId());
+        if (previousLength > 0) {
+            meshRadio.broadcast(frame, previousLength);
+        }
+    }
 }
 
 void handleMeshFrame(const ReceivedFrame& frame) {
@@ -318,6 +360,12 @@ void handleMeshFrame(const ReceivedFrame& frame) {
     memcpy(ack.ackedOrigin, origin, MAC_LENGTH);
     ack.ackedMessageId = messageId;
     ack.status = duplicate ? ACK_DUPLICATE : ACK_STORED;
+    // A reading signed with the generation before ours: the new keys follow (only for
+    // a leaf heard directly, the one the update can be sent to).
+    const bool needsKeyUpdate = meshAuth.isPreviousKeyId(data->header.keyId) && macEquals(origin, frame.sender);
+    if (needsKeyUpdate) {
+        ack.status = ACK_STORED_KEY_UPDATE;
+    }
     attachLeafInstruction(ack, origin);
     // Signed with the key generation the reading used, so a leaf not yet given
     // a new key after a rotation can still check it.
@@ -325,6 +373,9 @@ void handleMeshFrame(const ReceivedFrame& frame) {
     memcpy(ackFrame, &ack, sizeof(ack));
     const size_t ackLength = meshAuth.signAck(ackFrame, sizeof(ack), data->header.keyId);
     const bool acked = ackLength > 0 && meshRadio.sendTo(frame.sender, ackFrame, ackLength);
+    if (needsKeyUpdate) {
+        rememberKeyUpdate(origin, data->header.keyId);
+    }
     // Only a leaf heard directly can be answered again.
     if (macEquals(origin, frame.sender)) {
         rememberHeardLeaf(origin, messageId, data->header.keyId, ack.instructionType != INSTRUCTION_NONE);
@@ -399,6 +450,38 @@ void sendJoinReplies() {
     }
 }
 
+// The new keys go to each leaf of the generation before, until the radio confirms it.
+void sendKeyUpdates() {
+    for (uint8_t i = 0; i < keyUpdateCount; i++) {
+        KeyUpdateSlot& slot = keyUpdates[i];
+        if (slot.delivered || slot.attempts >= MAX_KEY_UPDATE_ATTEMPTS ||
+            (slot.attempts > 0 && millis() - slot.lastAttemptMs < KEY_UPDATE_INTERVAL_MS)) {
+            continue;
+        }
+        uint8_t iv[JOIN_IV_LENGTH];
+        for (size_t offset = 0; offset < sizeof(iv); offset += 4) {
+            const uint32_t word = esp_random();
+            memcpy(iv + offset, &word, min<size_t>(4, sizeof(iv) - offset));
+        }
+        KeyUpdatePacket update = {};
+        if (!meshAuth.makeKeyUpdate(slot.mac, slot.oldKeyId, iv, update)) {
+            slot.attempts = MAX_KEY_UPDATE_ATTEMPTS;  // not a generation this gateway still holds
+            continue;
+        }
+        meshRadio.initHeader(update.header, PACKET_KEY_UPDATE);
+        slot.delivered = meshRadio.sendTo(slot.mac, &update, sizeof(update));
+        slot.attempts++;
+        slot.lastAttemptMs = millis();
+        if (slot.delivered || slot.attempts == MAX_KEY_UPDATE_ATTEMPTS) {
+            char macText[18];
+            formatMac(slot.mac, macText);
+            Serial.printf(slot.delivered ? "🔑 Gave %s the new mesh keys (attempt %u).\n"
+                                         : "⚠️ The new mesh keys for %s were not confirmed after %u tries.\n",
+                          macText, slot.attempts);
+        }
+    }
+}
+
 void meshGatewayTask(void*) {
     const uint32_t openedAt = millis();
     uint32_t lastBeaconAt = openedAt - BEACON_INTERVAL_MS;
@@ -427,6 +510,7 @@ void meshGatewayTask(void*) {
         }
         sendLateCommands();
         sendJoinReplies();
+        sendKeyUpdates();
     }
     meshRadio.end();
     Serial.printf("📡 Mesh window closed; %u leaf reading(s) waiting for upload.\n", relayQueueCount);
@@ -485,6 +569,7 @@ void beginMeshWindow() {
     heardLeafCount = 0;
     joinRequestCount = 0;
     joinReplyCount = 0;
+    keyUpdateCount = 0;
 
     const int64_t now = static_cast<int64_t>(time(nullptr));
     meshWindowSlotEpoch =

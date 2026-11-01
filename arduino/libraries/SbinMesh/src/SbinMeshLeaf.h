@@ -28,6 +28,11 @@ struct LeafKeys {
 // struct a sketch passes in LeafConfig. False when there are none, or they are
 // not for this board.
 bool loadJoinedKeys(LeafKeys& keys);
+// The keys in flash, when they are a later generation than the ones in `keys` (or
+// `keys` has none): a rotation leaves the new keys there, and they must win over
+// the older ones a sketch has (a bench header, the organization key a former
+// gateway kept). True when `keys` was replaced.
+bool loadNewerJoinedKeys(LeafKeys& keys);
 void saveJoinedKeys(const LeafKeys& keys);
 void forgetJoinedKeys();
 

@@ -33,12 +33,17 @@ enum PacketType : uint8_t {
     // 8-byte tag: the leaf has no key yet, and the reply is sealed by its own tag.
     PACKET_JOIN = 4,
     PACKET_JOIN_REPLY = 5,
+    // A gateway gives a leaf the next generation's keys (SbinMeshKeyUpdate.h).
+    PACKET_KEY_UPDATE = 6,
 };
 
 enum AckStatus : uint8_t {
     ACK_STORED = 1,      // the gateway took custody of the reading
     ACK_DUPLICATE = 2,   // already stored earlier; the sender can drop it
     ACK_REJECTED = 3,    // will never be accepted; the sender should drop it
+    // Stored, and the reading came with keys of the generation before the
+    // gateway's: a KEY_UPDATE for the sender follows.
+    ACK_STORED_KEY_UPDATE = 4,
 };
 
 // A server command's id (a MongoDB ObjectId, as its 12 bytes).
@@ -232,7 +237,20 @@ struct __attribute__((packed)) JoinReplyPacket {
     uint8_t tag[JOIN_TAG_LENGTH];
 };
 
+// The next generation's keys for a leaf that still has the one before, sealed
+// under the leaf key it holds now (so only that leaf opens it). Sizes as the
+// JOIN reply's: key ID, leaf key and beacon key, a 16-byte tag.
+struct __attribute__((packed)) KeyUpdatePacket {
+    PacketHeader header;
+    uint8_t leafMac[MAC_LENGTH];
+    uint8_t oldKeyId;                     // the generation the leaf holds: its key seals this
+    uint8_t iv[JOIN_IV_LENGTH];
+    uint8_t sealed[JOIN_SEALED_LENGTH];
+    uint8_t tag[JOIN_TAG_LENGTH];
+};
+
 static_assert(sizeof(PacketHeader) == 21, "PacketHeader layout changed");
+static_assert(sizeof(KeyUpdatePacket) <= MAX_FRAME_SIZE, "KeyUpdatePacket too large");
 static_assert(sizeof(JoinPacket) <= MAX_FRAME_SIZE, "JoinPacket too large");
 static_assert(sizeof(JoinReplyPacket) <= MAX_FRAME_SIZE, "JoinReplyPacket too large");
 static_assert(sizeof(BeaconPacket) + TAG_LENGTH <= MAX_FRAME_SIZE, "BeaconPacket too large");

@@ -243,20 +243,22 @@ void runAsLeaf() {
     }
 
     // A leaf that was a gateway keeps the organization key and derives its own
-    // keys from it; a bench build has mesh_keys.h; otherwise the keys a JOIN
-    // left in flash, or a JOIN now.
+    // keys from it; a bench build has mesh_keys.h. Keys a JOIN or a rotation left
+    // in flash win when they are a later generation; with none at all, a JOIN now.
     sbinmesh::LeafKeys keys = {};
-    if (!ownLeafKeys(keys)) {
+    bool haveKeys = ownLeafKeys(keys);
 #if SBIN_LEAF_HAS_KEYS
+    if (!haveKeys) {
         memcpy(keys.mac, MESH_KEY_MAC, sbinmesh::MAC_LENGTH);
         memcpy(keys.leafKey, MESH_LEAF_KEY, sbinmesh::KEY_LENGTH);
         memcpy(keys.beaconKey, MESH_BEACON_KEY, sbinmesh::KEY_LENGTH);
         keys.keyId = MESH_KEY_ID;
-#else
-        if (!sbinmesh::loadJoinedKeys(keys)) {
-            joinTheMesh(keys);
-        }
+        haveKeys = true;
+    }
 #endif
+    haveKeys = sbinmesh::loadNewerJoinedKeys(keys) || haveKeys;
+    if (!haveKeys) {
+        joinTheMesh(keys);
     }
     sbinmesh::LeafConfig config = makeLeafConfig(keys);
     config.hooks.afterDelivery = refreshLeafLocation;

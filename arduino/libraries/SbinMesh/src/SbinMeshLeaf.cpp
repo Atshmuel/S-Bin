@@ -11,6 +11,7 @@
 #include "SbinClockDrift.h"
 #include "SbinMesh.h"
 #include "SbinMeshJoin.h"
+#include "SbinMeshKeyUpdate.h"
 
 namespace sbinmesh {
 
@@ -77,6 +78,9 @@ constexpr uint32_t JOIN_REPLY_WAIT_MS = 120000;
 constexpr uint32_t JOIN_JITTER_MAX_MS = 3000;
 constexpr uint32_t JOIN_RESEND_MS = 20000;
 constexpr uint8_t JOIN_SEND_ATTEMPTS = 3;
+// A gateway that holds a newer generation of the keys sends the new ones right
+// after the ACK; this is how long the leaf waits for them after its readings.
+constexpr uint32_t KEY_UPDATE_WAIT_MS = 3000;
 // A wake further than twice the guard plus this before the slot is not that
 // slot's wake: the clock reads the planned wake, a guard before the slot.
 constexpr uint32_t OFF_SLOT_MARGIN_SECONDS = 60;
@@ -139,6 +143,9 @@ uint32_t windowEndAtMs = 0;
 uint32_t slotGapSeconds = 0;
 uint32_t lastDeliveredMessageId = 0;
 bool lastAckHadCommand = false;
+// The gateway said new keys follow, and whether they came (and were saved).
+bool keyUpdateExpected = false;
+bool keyUpdateSaved = false;
 
 bool clockValid() {
     return isValidEpoch(time(nullptr));
@@ -336,6 +343,35 @@ bool waitForBeacon(uint32_t listenMs, bool atScheduledSlot) {
     return false;
 }
 
+// A KEY_UPDATE for this leaf (the gateway holds a later generation of the keys):
+// opened with the keys it has now and kept in flash, to be used from the next
+// wake; this cycle goes on with the old ones, which the gateway still takes.
+bool takeKeyUpdate(const ReceivedFrame& frame) {
+    const KeyUpdatePacket* update = frame.as<KeyUpdatePacket>(PACKET_KEY_UPDATE);
+    if (update == nullptr) {
+        return false;
+    }
+    if (keyUpdateSaved) {
+        return true;  // a repeat
+    }
+    Key current;
+    memcpy(current.bytes, config->keys.leafKey, KEY_LENGTH);
+    JoinedKeys opened;
+    if (!openKeyUpdate(current, radio.macAddress(), config->keys.keyId, *update, opened)) {
+        Serial.println("⚠️ A key update did not check out; ignored.");
+        return true;
+    }
+    LeafKeys fresh = {};
+    memcpy(fresh.mac, radio.macAddress(), MAC_LENGTH);
+    memcpy(fresh.leafKey, opened.leafKey.bytes, KEY_LENGTH);
+    memcpy(fresh.beaconKey, opened.beaconKey.bytes, KEY_LENGTH);
+    fresh.keyId = opened.keyId;
+    saveJoinedKeys(fresh);
+    keyUpdateSaved = true;
+    Serial.printf("🔑 New mesh keys received (generation %u); used from the next wake.\n", opened.keyId);
+    return true;
+}
+
 // Sends one reading and waits for the gateway's ACK, copied to `ack`; retries
 // reuse the same message ID so the gateway and server can recognise duplicates.
 bool deliverReading(const DataPacket& reading, AckPacket& ack) {
@@ -362,6 +398,9 @@ bool deliverReading(const DataPacket& reading, AckPacket& ack) {
             if (!radio.receive(frame, 50)) {
                 continue;
             }
+            if (takeKeyUpdate(frame)) {
+                continue;
+            }
             const AckPacket* received = frame.as<AckPacket>(PACKET_ACK);
             if (received == nullptr || received->ackedMessageId != reading.header.messageId ||
                 !macEquals(received->ackedOrigin, radio.macAddress())) {
@@ -370,6 +409,7 @@ bool deliverReading(const DataPacket& reading, AckPacket& ack) {
             ack = *received;
             lastDeliveredMessageId = reading.header.messageId;
             lastAckHadCommand = received->instructionType != INSTRUCTION_NONE;
+            keyUpdateExpected = keyUpdateExpected || received->status == ACK_STORED_KEY_UPDATE;
             Serial.printf("✅ Reading %08lX acknowledged (status %u, level %u%%, taken %lu s ago)%s.\n",
                           static_cast<unsigned long>(reading.header.messageId), ack.status,
                           reading.level, static_cast<unsigned long>(reading.ageSeconds),
@@ -400,6 +440,23 @@ void sendPendingReadings() {
     }
     if (pendingCount > 0) {
         Serial.printf("📦 %u reading(s) kept for the next cycle.\n", pendingCount);
+    }
+}
+
+// After its readings, a leaf told that new keys follow waits for them a moment.
+void waitForKeyUpdate() {
+    if (!keyUpdateExpected || keyUpdateSaved) {
+        return;
+    }
+    ReceivedFrame frame;
+    const uint32_t startedAt = millis();
+    while (!keyUpdateSaved && millis() - startedAt < KEY_UPDATE_WAIT_MS) {
+        if (radio.receive(frame, 100)) {
+            takeKeyUpdate(frame);
+        }
+    }
+    if (!keyUpdateSaved) {
+        Serial.println("⚠️ The new mesh keys did not arrive; the gateway tries again next window.");
     }
 }
 
@@ -537,6 +594,15 @@ bool loadJoinedKeys(LeafKeys& keys) {
         return false;
     }
     keys = loaded;
+    return true;
+}
+
+bool loadNewerJoinedKeys(LeafKeys& keys) {
+    LeafKeys stored = {};
+    if (!loadJoinedKeys(stored) || !keyIdIsNewer(stored.keyId, keys.keyId)) {
+        return false;
+    }
+    keys = stored;
     return true;
 }
 
@@ -681,6 +747,7 @@ LeafExchange runLeafExchange(const LeafConfig& leafConfig, uint32_t listenMs) {
     if (waitForBeacon(listenMs, false)) {
         result.heardBeacon = true;
         sendPendingReadings();
+        waitForKeyUpdate();
         waitForLateCommand();
         result.delivered = pendingCount == 0;
         result.nextWakeEpoch = nextWakeEpoch;
@@ -744,6 +811,7 @@ void runLeafCycle(const LeafConfig& leafConfig) {
     }
 
     sendPendingReadings();
+    waitForKeyUpdate();
     waitForLateCommand();
     if (config->hooks.afterDelivery != nullptr) {
         config->hooks.afterDelivery();
