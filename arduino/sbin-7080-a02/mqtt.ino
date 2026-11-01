@@ -23,6 +23,7 @@ String waitingRelayLeafMac;
 uint32_t waitingRelayMessageId = 0;
 uint32_t relayResultCounter = 0;
 bool relayResultAccepted = false;
+String relayResultReason;
 
 // The JOIN currently waiting for the server's join_result, and what it said.
 String waitingJoinLeafMac;
@@ -354,7 +355,10 @@ RelayUploadResult publishRelayRecord(const RelayRecord& record, unsigned long ti
     Serial.printf("%s Relayed reading %08lX of %s.\n",
                   relayResultAccepted ? "✅ Server stored" : "⚠️ Server rejected",
                   static_cast<unsigned long>(data.header.messageId), leafMac);
-    return relayResultAccepted ? RELAY_ACCEPTED : RELAY_REJECTED;
+    if (relayResultAccepted) {
+        return RELAY_ACCEPTED;
+    }
+    return relayResultReason == "leaf_deleted" ? RELAY_LEAF_DELETED : RELAY_REJECTED;
 }
 
 // Passes a leaf's JOIN to the server and waits for its join_result (the leaf's
@@ -627,6 +631,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
             doc["messageId"].as<uint32_t>() == waitingRelayMessageId &&
             waitingRelayLeafMac.equalsIgnoreCase(doc["leafMac"].as<const char*>())) {
             relayResultAccepted = doc["accepted"] == true;
+            relayResultReason = doc["reason"].is<const char*>() ? doc["reason"].as<String>() : String();
             if (!relayResultAccepted && doc["reason"].is<const char*>()) {
                 Serial.printf("⚠️ Relay rejected by the server: %s.\n",
                               doc["reason"].as<const char*>());

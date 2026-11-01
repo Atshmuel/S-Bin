@@ -49,6 +49,10 @@ struct LeafHooks {
     void (*afterDelivery)();
     // Optional: last thing before the deep sleep (rails off, logs flushed).
     void (*beforeSleep)();
+    // Optional: the server no longer has this leaf (INSTRUCTION_RESET): forget
+    // the settings and the mesh keys and go back to waiting for a setup. A board
+    // without it ignores the command.
+    void (*resetDevice)();
 };
 
 struct LeafConfig {

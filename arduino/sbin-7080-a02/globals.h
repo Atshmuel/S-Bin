@@ -54,9 +54,9 @@ constexpr uint32_t USB_LOG_RECONNECT_WAIT_MS = 3000;
 
 // This firmware's version, reported in every diagnostics block (semver; bump
 // it by hand for every flash).
-constexpr char FIRMWARE_VERSION[] = "2.5.0";
+constexpr char FIRMWARE_VERSION[] = "2.6.0";
 // The same as numbers, for a leaf's diagnostics (keep the two in step).
-constexpr uint8_t FIRMWARE_VERSION_NUMBERS[3] = {2, 5, 0};
+constexpr uint8_t FIRMWARE_VERSION_NUMBERS[3] = {2, 6, 0};
 
 // The S-Bin servers (2i): registration over HTTPS, reports over MQTT with TLS
 // on the private broker, both checked against SBIN_CA_FILE in the modem.
@@ -91,6 +91,10 @@ constexpr uint32_t MAX_AWAKE_EXTENSION_SECONDS = 3600;
 // readings. The server sets it per organization in every schedule acknowledgement.
 constexpr uint32_t DEFAULT_MESH_AWAKE_WINDOW_SECONDS = 10;
 constexpr uint32_t MAX_MESH_AWAKE_WINDOW_SECONDS = 60;
+// A device the server deleted (it was reset) opens its setup network this long, then
+// sleeps this long and opens it again, so it does not drain its battery waiting.
+constexpr unsigned long SETUP_PORTAL_OPEN_MS = 10UL * 60UL * 1000UL;
+constexpr uint32_t SETUP_PORTAL_CLOSED_SECONDS = 12UL * 60UL * 60UL;
 
 struct DeviceInstruction {
     String id;
@@ -129,6 +133,7 @@ extern float longitude;
 extern bool hasGpsFix;
 // A location from the setup page that GPS has not been scheduled around yet.
 extern bool setupLocationPending;
+extern bool timedSetup;
 extern bool lastCalibrationFailed;
 extern bool gpsModeActive;
 extern bool configurationPortalActive;
@@ -255,6 +260,7 @@ constexpr uint8_t MAX_JOIN_REQUESTS = 64;
 enum RelayUploadResult {
     RELAY_ACCEPTED,
     RELAY_REJECTED,
+    RELAY_LEAF_DELETED,   // refused because the leaf's bin was deleted: it is to be reset
     RELAY_NO_REPLY,
 };
 
@@ -265,6 +271,7 @@ bool leafResultsUploaded();
 void setLeafInstructions(const LeafInstruction* instructions, uint8_t count);
 RelayUploadResult publishRelayRecord(const RelayRecord& record, unsigned long timeoutMs);
 void uploadJoinRequests();
+void rememberResetLeaf(const uint8_t mac[sbinmesh::MAC_LENGTH]);
 RelayUploadResult publishJoinRequest(const sbinmesh::JoinPacket& join, sbinmesh::JoinReplyPacket& reply,
                                      unsigned long timeoutMs);
 bool synchronizeClockFromNetwork(unsigned long timeoutMs);

@@ -203,6 +203,17 @@ void joinTheMesh(sbinmesh::LeafKeys& keys) {
     enterDeepSleepForSetupRetry(NO_KEYS_RETRY_SLEEP_SECONDS, "No gateway answered the join");
 }
 
+// The server no longer has this leaf (its bin was deleted): back to the state of a new
+// device. Its settings and mesh keys go; the learned clock drift is the chip's and stays.
+void resetThisDevice() {
+    clearDeviceSettings();
+    sbinmesh::forgetJoinedKeys();
+    Serial.println("🧹 Settings and mesh keys wiped; restarting into the setup page.");
+    Serial.flush();
+    delay(500);
+    ESP.restart();
+}
+
 void prepareLeafSleep() {
     powerDownScale();
     cutModemPower();
@@ -218,6 +229,7 @@ sbinmesh::LeafConfig makeLeafConfig(const sbinmesh::LeafKeys& keys) {
     config.hooks.fillReading = fillLeafReading;
     config.hooks.runInstruction = runLeafInstruction;
     config.hooks.beforeSleep = prepareLeafSleep;
+    config.hooks.resetDevice = resetThisDevice;
     return config;
 }
 

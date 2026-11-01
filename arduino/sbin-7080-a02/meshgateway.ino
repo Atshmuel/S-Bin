@@ -30,7 +30,7 @@ constexpr uint32_t MAX_BEACON_HOLD_MS = 30000;
 // A command that reaches the gateway after a leaf's reading was ACKed (the
 // instruction check runs once the report is done) is sent to the leaf in a
 // second ACK, repeated this often, this many times, while the window is open.
-constexpr uint8_t MAX_HEARD_LEAVES = 8;
+constexpr uint8_t MAX_HEARD_LEAVES = 64;
 constexpr uint8_t MAX_LATE_ACKS = 3;
 constexpr uint32_t LATE_ACK_INTERVAL_MS = 1000;
 // A leaf's JOIN needs the server (its keys come from there): while one is being
@@ -110,6 +110,11 @@ RTC_DATA_ATTR RelayRecord relayQueue[RELAY_QUEUE_SIZE];
 // setLeafInstructions()); guarded by relayQueueMutex like the relay queue.
 RTC_DATA_ATTR LeafInstruction leafInstructions[MAX_LEAF_INSTRUCTIONS];
 RTC_DATA_ATTR uint8_t leafInstructionCount = 0;
+// Leaves the server refused as deleted (leaf_deleted): each gets INSTRUCTION_RESET in
+// its next ACK, then is forgotten here. Kept in RTC memory like the commands.
+constexpr uint8_t MAX_RESET_LEAVES = 64;
+RTC_DATA_ATTR uint8_t resetLeafMacs[MAX_RESET_LEAVES][sbinmesh::MAC_LENGTH];
+RTC_DATA_ATTR uint8_t resetLeafCount = 0;
 RTC_DATA_ATTR uint8_t relayQueueCount = 0;
 RTC_DATA_ATTR uint32_t beaconSeq = 0;
 
@@ -131,11 +136,36 @@ bool ensureMeshMutex() {
 // Puts the leaf's pending command, if any, into its ACK.
 void attachLeafInstruction(AckPacket& ack, const uint8_t leafMac[MAC_LENGTH]) {
     xSemaphoreTake(relayQueueMutex, portMAX_DELAY);
-    for (uint8_t i = 0; i < leafInstructionCount; i++) {
-        if (macEquals(leafInstructions[i].leafMac, leafMac)) {
-            memcpy(ack.instructionId, leafInstructions[i].id, INSTRUCTION_ID_LENGTH);
-            ack.instructionType = leafInstructions[i].type;
-            ack.instructionValue = leafInstructions[i].value;
+    bool toReset = false;
+    for (uint8_t i = 0; i < resetLeafCount && !toReset; i++) {
+        toReset = macEquals(resetLeafMacs[i], leafMac);
+    }
+    if (toReset) {
+        // An ID made of the leaf's own MAC: a repeat is the same command.
+        memcpy(ack.instructionId, leafMac, MAC_LENGTH);
+        memset(ack.instructionId + MAC_LENGTH, 0xA5, INSTRUCTION_ID_LENGTH - MAC_LENGTH);
+        ack.instructionType = INSTRUCTION_RESET;
+        ack.instructionValue = 0;
+    } else {
+        for (uint8_t i = 0; i < leafInstructionCount; i++) {
+            if (macEquals(leafInstructions[i].leafMac, leafMac)) {
+                memcpy(ack.instructionId, leafInstructions[i].id, INSTRUCTION_ID_LENGTH);
+                ack.instructionType = leafInstructions[i].type;
+                ack.instructionValue = leafInstructions[i].value;
+                break;
+            }
+        }
+    }
+    xSemaphoreGive(relayQueueMutex);
+}
+
+// The reset reached the leaf (the radio confirmed the ACK): nothing more to send it.
+void forgetResetLeaf(const uint8_t mac[MAC_LENGTH]) {
+    xSemaphoreTake(relayQueueMutex, portMAX_DELAY);
+    for (uint8_t i = 0; i < resetLeafCount; i++) {
+        if (macEquals(resetLeafMacs[i], mac)) {
+            memmove(resetLeafMacs[i], resetLeafMacs[i + 1], MAC_LENGTH * (resetLeafCount - i - 1));
+            resetLeafCount--;
             break;
         }
     }
@@ -373,6 +403,9 @@ void handleMeshFrame(const ReceivedFrame& frame) {
     memcpy(ackFrame, &ack, sizeof(ack));
     const size_t ackLength = meshAuth.signAck(ackFrame, sizeof(ack), data->header.keyId);
     const bool acked = ackLength > 0 && meshRadio.sendTo(frame.sender, ackFrame, ackLength);
+    if (acked && ack.instructionType == INSTRUCTION_RESET) {
+        forgetResetLeaf(origin);
+    }
     if (needsKeyUpdate) {
         rememberKeyUpdate(origin, data->header.keyId);
     }
@@ -395,7 +428,7 @@ void handleMeshFrame(const ReceivedFrame& frame) {
 // A command that arrived after a heard leaf's reading was ACKed goes to it in
 // a second ACK for that reading; the leaf listens until the window closes.
 void sendLateCommands() {
-    if (leafInstructionCount == 0) {
+    if (leafInstructionCount == 0 && resetLeafCount == 0) {
         return;
     }
     for (uint8_t i = 0; i < heardLeafCount; i++) {
@@ -417,6 +450,9 @@ void sendLateCommands() {
         memcpy(ackFrame, &ack, sizeof(ack));
         const size_t ackLength = meshAuth.signAck(ackFrame, sizeof(ack), leaf.keyId);
         const bool sent = ackLength > 0 && meshRadio.sendTo(leaf.mac, ackFrame, ackLength);
+        if (sent && ack.instructionType == INSTRUCTION_RESET) {
+            forgetResetLeaf(leaf.mac);
+        }
         leaf.lateAcks++;
         leaf.lastLateAckMs = millis();
         char macText[18];
@@ -658,10 +694,33 @@ void uploadRelayedReadings() {
             continue;
         }
         silentReplies = 0;
+        if (result == RELAY_LEAF_DELETED) {
+            char macText[18];
+            formatMac(record.data.header.origin, macText);
+            Serial.printf("🧹 The server no longer has leaf %s: it will be told to reset.\n", macText);
+            rememberResetLeaf(record.data.header.origin);
+        }
         leafResultUploaded = leafResultUploaded || record.data.resultStatus != RESULT_NONE;
         removeRelayRecord(record.data.header.origin, record.data.header.messageId);
     }
     relayUploadSpentMs += millis() - startedAt;
+}
+
+// The server refused a leaf's reading because its bin was deleted: its next ACK (or
+// a late one in this window) carries INSTRUCTION_RESET.
+void rememberResetLeaf(const uint8_t mac[MAC_LENGTH]) {
+    if (!ensureMeshMutex()) {
+        return;
+    }
+    xSemaphoreTake(relayQueueMutex, portMAX_DELAY);
+    bool known = false;
+    for (uint8_t i = 0; i < resetLeafCount && !known; i++) {
+        known = macEquals(resetLeafMacs[i], mac);
+    }
+    if (!known && resetLeafCount < MAX_RESET_LEAVES) {
+        memcpy(resetLeafMacs[resetLeafCount++], mac, MAC_LENGTH);
+    }
+    xSemaphoreGive(relayQueueMutex);
 }
 
 bool leafResultsUploaded() {

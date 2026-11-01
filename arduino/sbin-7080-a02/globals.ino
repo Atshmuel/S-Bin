@@ -24,6 +24,8 @@ float latitude = 0;
 float longitude = 0;
 bool hasGpsFix = false;
 bool setupLocationPending = false;
+// Set when the device was reset by the server: its setup page is open for a while only.
+bool timedSetup = false;
 bool gpsModeActive = false;
 bool configurationPortalActive = false;
 int binDepthMm = 0;

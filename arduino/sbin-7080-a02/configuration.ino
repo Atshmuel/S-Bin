@@ -559,6 +559,9 @@ bool saveSetupFromRequest(String& error) {
 
     saveSetup(submittedOrgId, submittedCode);
     saveJoinCode(submittedJoinCode);
+    preferences.begin("credentials", false);
+    preferences.remove("timedSetup");  // set up again: no more timed page
+    preferences.end();
     if (submittedLocation.length() > 0) {
         saveSetupLocation(lat, lng);
     }
@@ -601,6 +604,7 @@ void loadDeviceSettings() {
     scaleZero = preferences.getInt("scaleZero", 0);
     scaleCountsPerGram = preferences.getFloat("scaleFactor", 0.0f);
     setupLocationPending = preferences.getBool("setupLoc", false);
+    timedSetup = preferences.getBool("timedSetup", false);
     bool hasStoredLocation = preferences.isKey("gpsEpoch");
     preferences.end();
     if (!clockDriftLoaded) {
@@ -717,9 +721,12 @@ void saveDeviceKey(const String& key) {
     joinCode = "";
 }
 
+// A device the server no longer has goes back to waiting for a setup, but its setup
+// page is not left open for ever (see SETUP_PORTAL_OPEN_MS).
 void clearDeviceSettings() {
     preferences.begin("credentials", false);
     preferences.clear();
+    preferences.putBool("timedSetup", true);
     preferences.end();
 }
 

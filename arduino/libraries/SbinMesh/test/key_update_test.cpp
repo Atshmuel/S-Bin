@@ -255,7 +255,49 @@ static void testWhoTakesAnUpdate() {
     CHECK(leafA.verify(frame, sizeof(frame) - 1) == AuthResult::BAD_LENGTH);
 }
 
+// The reset of a deleted leaf rides in an ordinary ACK, signed with the leaf's own key.
+static void testResetCommand() {
+    const Key org = rangeKey(1);
+    MeshAuth gateway;
+    gateway.useOrganizationKey(org, 2);
+    MeshAuth leaf = leafOf(org, LEAF_A, 2);
+    MeshAuth otherLeaf = leafOf(org, LEAF_B, 2);
+
+    AckPacket ack = {};
+    ack.header.magic = PACKET_MAGIC;
+    ack.header.version = PROTOCOL_VERSION;
+    ack.header.type = PACKET_ACK;
+    memcpy(ack.header.origin, GATEWAY_MAC, MAC_LENGTH);
+    memcpy(ack.ackedOrigin, LEAF_A, MAC_LENGTH);
+    ack.ackedMessageId = 0x01020304;
+    ack.status = ACK_STORED;
+    memcpy(ack.instructionId, LEAF_A, MAC_LENGTH);
+    memset(ack.instructionId + MAC_LENGTH, 0xA5, INSTRUCTION_ID_LENGTH - MAC_LENGTH);
+    ack.instructionType = INSTRUCTION_RESET;
+
+    uint8_t frame[sizeof(AckPacket) + TAG_LENGTH];
+    memcpy(frame, &ack, sizeof(ack));
+    CHECK(gateway.signAck(frame, sizeof(ack), 2) == sizeof(frame));
+    CHECK(leaf.verify(frame, sizeof(frame)) == AuthResult::OK);                  // the leaf it is for
+    CHECK(otherLeaf.verify(frame, sizeof(frame)) == AuthResult::NOT_FOR_ME);     // not another leaf
+    const AckPacket* received = reinterpret_cast<const AckPacket*>(frame);
+    CHECK(received->instructionType == INSTRUCTION_RESET && INSTRUCTION_RESET == 5);
+
+    // Altering it breaks the tag, so nobody without the organization key can send one.
+    uint8_t forged[sizeof(frame)];
+    memcpy(forged, frame, sizeof(frame));
+    forged[offsetof(AckPacket, instructionType)] = INSTRUCTION_RESET;
+    forged[sizeof(frame) - 1] ^= 1;
+    CHECK(leaf.verify(forged, sizeof(forged)) == AuthResult::BAD_TAG);
+    MeshAuth stranger;
+    stranger.useOrganizationKey(rangeKey(77), 2);
+    memcpy(forged, &ack, sizeof(ack));
+    CHECK(stranger.signAck(forged, sizeof(ack), 2) == sizeof(forged));
+    CHECK(leaf.verify(forged, sizeof(forged)) == AuthResult::BAD_TAG);
+}
+
 int main() {
+    testResetCommand();
     testKeyIds();
     testSealAndOpen();
     testBeaconsForBothGenerations();

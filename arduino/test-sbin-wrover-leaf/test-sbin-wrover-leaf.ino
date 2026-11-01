@@ -98,6 +98,16 @@ void runSimulatedInstruction(const AckPacket& ack, DataPacket& reading) {
     }
 }
 
+// The server no longer has this leaf: its mesh keys go, and it sleeps half a day (it has
+// no setup page; with a join code in its sketch it asks to join again afterwards).
+void resetSimulatedLeaf() {
+    forgetJoinedKeys();
+    Serial.println("🧹 Mesh keys wiped; sleeping 12 hours.");
+    Serial.flush();
+    esp_sleep_enable_timer_wakeup(12ULL * 3600ULL * 1000000ULL);
+    esp_deep_sleep_start();
+}
+
 LeafConfig makeConfig(const LeafKeys& keys) {
     LeafConfig config = {};
     config.organizationId = ORGANIZATION_ID;
@@ -105,6 +115,7 @@ LeafConfig makeConfig(const LeafKeys& keys) {
     config.keys = keys;
     config.hooks.fillReading = fillFakeReading;
     config.hooks.runInstruction = runSimulatedInstruction;
+    config.hooks.resetDevice = resetSimulatedLeaf;
     return config;
 }
 

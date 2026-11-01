@@ -56,6 +56,11 @@ enum InstructionType : uint8_t {
     INSTRUCTION_CALIBRATE_EMPTY_BIN = 2,
     INSTRUCTION_CALIBRATE_SCALE = 3,   // value: the known weight in grams
     INSTRUCTION_BECOME_LEAF = 4,       // a gateway reporting through another stops being one
+    // The server no longer has this leaf (its bin was deleted): it wipes its
+    // settings and keys and goes back to waiting for a setup. The gateway makes it
+    // when the server refuses a reading as leaf_deleted; it comes in an ACK signed
+    // with the leaf's own key, so only a holder of the organization key can send it.
+    INSTRUCTION_RESET = 5,
 };
 
 enum ResultStatus : uint8_t {

@@ -136,6 +136,9 @@ void setup() {
 void loop() {
     if (configurationPortalActive) {
         handleConfigurationPortal();
+        if (timedSetup && millis() > SETUP_PORTAL_OPEN_MS) {
+            enterDeepSleepForSetupRetry(SETUP_PORTAL_CLOSED_SECONDS, "Nobody set this device up");
+        }
         return;
     }
 

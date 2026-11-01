@@ -207,6 +207,15 @@ void runInstruction(const AckPacket& ack) {
         memcmp(ack.instructionId, lastInstructionId, INSTRUCTION_ID_LENGTH) == 0) {
         return;
     }
+    if (ack.instructionType == INSTRUCTION_RESET) {
+        // Nothing to report back: the server does not know this leaf any more.
+        if (config->hooks.resetDevice != nullptr) {
+            Serial.println("🧹 The server no longer has this device: resetting it.");
+            Serial.flush();
+            config->hooks.resetDevice();
+        }
+        return;
+    }
     memcpy(lastInstructionId, ack.instructionId, INSTRUCTION_ID_LENGTH);
 
     DataPacket reading = makeReading();
