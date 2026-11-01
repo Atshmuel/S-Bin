@@ -45,13 +45,21 @@ void setup() {
     const bool modemReady = initializeModem();
     stageTimes.modemMs = millis() - stageStartedAt;
     if (!modemReady) {
-        // It cannot report itself (no SIM, or a modem that does not start), so
-        // this wake is a leaf's, through another gateway.
-        const uint8_t reason = probeSimCard() == SIM_ABSENT ? sbinmesh::DATA_SIM_MISSING
-                                                            : sbinmesh::DATA_NO_CELLULAR;
+        // It cannot report itself. Without a SIM card this wake is a leaf's,
+        // through another gateway (the leaf cycle finds the other gateway's slot
+        // by itself). With one, the modem is failing: a single bounded try
+        // through another gateway, then back to sleep for the next slot; the
+        // leaf cycle would listen for hours on a gateway that has no schedule of
+        // a gateway to follow (2026-11-01: it listened from 04:51 for 13.5 h).
+        const bool simAbsent = probeSimCard() == SIM_ABSENT;
         powerOffModem();
         recordReportOutcome(false);
-        reportAsLeafUntilNextWake(reason);
+        if (simAbsent) {
+            reportAsLeafUntilNextWake(sbinmesh::DATA_SIM_MISSING);
+        } else {
+            reportThroughAnotherGateway();
+            becomeLeafIfAsked();
+        }
         enterDeepSleepUntilNextReport();
     }
     // Two cycles in a row without a report: through another gateway first, at

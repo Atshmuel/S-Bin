@@ -71,13 +71,34 @@ void powerOffModem() {
     cutModemPower();
 }
 
+// The modem answers AT a moment before it can be initialized (on 2026-11-01 one
+// init, 1.5 s after the power-on, failed with the SIM ready and the gateway gave
+// up its whole slot), so a failed init is tried again a few times first.
+namespace {
+constexpr uint8_t MODEM_INIT_ATTEMPTS = 3;
+constexpr uint32_t MODEM_INIT_RETRY_DELAY_MS = 2000;
+
+bool initModemWithRetries() {
+    for (uint8_t attempt = 1; attempt <= MODEM_INIT_ATTEMPTS; attempt++) {
+        if (modem.init()) {
+            return true;
+        }
+        if (attempt < MODEM_INIT_ATTEMPTS) {
+            Serial.printf("⚠️ Modem init failed (attempt %u of %u); trying again.\n", attempt, MODEM_INIT_ATTEMPTS);
+            delay(MODEM_INIT_RETRY_DELAY_MS);
+        }
+    }
+    return false;
+}
+}
+
 bool initializeModem() {
     bool alreadyOn = false;
     if (!powerOnModem(alreadyOn)) {
         return false;
     }
 
-    if (!modem.init()) {
+    if (!initModemWithRetries()) {
         if (!modem.testAT(1000)) {
             Serial.println("❌ Modem Init Failed: no AT response on UART1 (RX=4, TX=5).");
             Serial.println("Check modem power, PWRKEY=41, and UART wiring/pin selection.");
