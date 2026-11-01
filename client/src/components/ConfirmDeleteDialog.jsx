@@ -10,15 +10,17 @@ import { useAppSide } from "@/hooks/useAppSide"
 const DELETE_WORDS = ["delete", "מחק"]
 
 // A deletion (or another step that cannot be undone, with its own confirmLabel) the user
-// confirms by typing a word: "delete" unless confirmWords says otherwise.
-function ConfirmDeleteDialog({ trigger, title, description, inputLabel, confirmWords = DELETE_WORDS, confirmLabel, isDeleting, onConfirm }) {
+// confirms by typing a word: "delete" unless confirmWords says otherwise. A caller whose
+// step leaves the page where it is controls the dialog (open, onOpenChange) to close it
+// once the step is done.
+function ConfirmDeleteDialog({ trigger, title, description, inputLabel, confirmWords = DELETE_WORDS, confirmLabel, isDeleting, onConfirm, open, onOpenChange }) {
     const { t } = useTranslation()
     const { isRight, side } = useAppSide()
     const [input, setInput] = useState('')
     const confirmed = confirmWords.some(word => input.toLowerCase() === word.toLowerCase())
 
     return (
-        <Dialog onOpenChange={(open) => !open && setInput('')}>
+        <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) setInput(''); onOpenChange?.(isOpen) }}>
             <DialogTrigger asChild>{trigger}</DialogTrigger>
             <DialogContent side={side}>
                 <DialogHeader isRight={isRight} className="pt-6">

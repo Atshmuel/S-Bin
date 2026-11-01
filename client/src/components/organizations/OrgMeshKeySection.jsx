@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -14,9 +15,11 @@ import { rotateMeshKey } from "@/services/apiMeshSettings";
 // the organization's name.
 function OrgMeshKeySection({ id, organization }) {
     const { t } = useTranslation();
+    // Closed once the key is replaced, so it cannot be confirmed twice by mistake.
+    const [open, setOpen] = useState(false);
     const rotate = useMutation({
         mutationFn: () => rotateMeshKey(organization._id),
-        onSuccess: ({ meshKeyId }) => toast.success(t("components.orgSettingsPage.meshKey.rotated", { generation: meshKeyId })),
+        onSuccess: ({ meshKeyId }) => { setOpen(false); toast.success(t("components.orgSettingsPage.meshKey.rotated", { generation: meshKeyId })); },
         onError: (error) => toast.error(error.message),
     });
 
@@ -25,6 +28,8 @@ function OrgMeshKeySection({ id, organization }) {
             description={t("components.orgSettingsPage.meshKey.description")}>
             <SettingsRow label={t("components.orgSettingsPage.meshKey.rotate")} description={t("components.orgSettingsPage.meshKey.rotateHint")}>
                 <ConfirmDeleteDialog
+                    open={open}
+                    onOpenChange={setOpen}
                     trigger={<Button disabled={rotate.isPending} variant="outline_destructive">
                         {rotate.isPending ? <Spinner /> : t("components.orgSettingsPage.meshKey.rotateButton")}
                     </Button>}
