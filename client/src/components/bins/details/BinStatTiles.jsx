@@ -107,6 +107,14 @@ function BinStatTiles({ bin }) {
                         </Link>
                     </span>
                 )}
+                {viaMesh && bin.relay && (
+                    <span>
+                        {t('pages.binDetails.tiles.viaRelay')}{" "}
+                        <Link to={`/bins/${bin.relay._id}`} className="text-primary underline-offset-4 hover:underline">
+                            {bin.relay.binName}
+                        </Link>
+                    </span>
+                )}
                 {viaMesh && (
                     <span><span dir="ltr">{connection.rssi ?? '-'} dBm</span> · {t('components.binCard.hops')}: {connection.hops ?? '-'}</span>
                 )}

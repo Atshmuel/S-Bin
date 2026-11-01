@@ -71,8 +71,8 @@ function BinLink({ id, name }) {
     return <Link className="whitespace-nowrap text-primary underline-offset-4 hover:underline" to={`/bins/${id}`}>{name ?? "-"}</Link>
 }
 
-// A reason's badge; a leaf offline because its gateway is names that gateway
-// and links to it, the device to check first.
+// A reason's badge; a leaf offline because its gateway (or the leaf that relays for it) is
+// names that device and links to it, the one to check first.
 function ReasonBadge({ reason, offlineCause }) {
     const { t } = useTranslation()
     if (reason === "offline" && offlineCause?.cause === "gateway") {
@@ -80,6 +80,15 @@ function ReasonBadge({ reason, offlineCause }) {
             <Link to={`/bins/${offlineCause.gatewayId}`}>
                 <Badge variant={REASON_VARIANTS.offline}>
                     {t("pages.dashboard.reasons.offlineByGateway", { name: offlineCause.gatewayName ?? "-" })}
+                </Badge>
+            </Link>
+        )
+    }
+    if (reason === "offline" && offlineCause?.cause === "relay") {
+        return (
+            <Link to={`/bins/${offlineCause.relayId}`}>
+                <Badge variant={REASON_VARIANTS.offline}>
+                    {t("pages.dashboard.reasons.offlineByRelay", { name: offlineCause.relayName ?? "-" })}
                 </Badge>
             </Link>
         )

@@ -70,7 +70,7 @@ async function findOrCreateLeafBin(leafMac, gateway, record) {
 // A mesh gateway uploads a reading it took custody of from a leaf without a SIM.
 // The leaf has no device key, so the authenticated gateway vouches for it; leaves
 // are created in, and limited to, the gateway's organization.
-export async function handleRelay(gatewayMac, { deviceKey, leafMac, messageId, hops, rssi, measuredAt, record, instructionResult }) {
+export async function handleRelay(gatewayMac, { deviceKey, leafMac, viaMac, messageId, hops, rssi, measuredAt, record, instructionResult }) {
     const gateway = await getBinByMacAndKeyShared(gatewayMac, deviceKey);
     if (!gateway) {
         console.warn(`Relay rejected for ${gatewayMac}: invalid gateway credentials.`);
@@ -142,11 +142,21 @@ export async function handleRelay(gatewayMac, { deviceKey, leafMac, messageId, h
         return;
     }
 
+    // A reading that came by more than one hop names the leaf that relayed it (its MAC,
+    // from the gateway, which saw who sent the frame); one of this organization's only.
+    let viaLeafId = null;
+    if (hops >= 2 && typeof viaMac === "string" && MAC_ADDRESS_PATTERN.test(viaMac) &&
+        viaMac.toUpperCase() !== leafMac.toUpperCase() && viaMac.toUpperCase() !== gatewayMac.toUpperCase()) {
+        const relayLeaf = await binModel.findOne({ macAddress: viaMac.toUpperCase(), ownerId: gateway.ownerId }, { _id: 1 }).lean();
+        viaLeafId = relayLeaf?._id ?? null;
+    }
+
     const takenAt = readingTime(measuredAt, leafMac);
     try {
         await applyDeviceLog(leaf, leafRecord, {
             via: "mesh",
             gatewayId: gateway._id,
+            viaLeafId,
             hops,
             rssi: rssi ?? null,
             measuredAt: takenAt,

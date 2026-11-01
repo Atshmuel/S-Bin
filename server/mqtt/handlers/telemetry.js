@@ -81,7 +81,7 @@ export async function applyDeviceLog(bin, {
     clockErrorSeconds,
     scale,
     diagnostics: rawDiagnostics,
-}, { via, gatewayId = null, hops = null, rssi = null, measuredAt, reportIntervalMinutes, reportStartHour }) {
+}, { via, gatewayId = null, viaLeafId = null, hops = null, rssi = null, measuredAt, reportIntervalMinutes, reportStartHour }) {
     const schedule = getNextReportSchedule(location, reportIntervalMinutes, reportStartHour);
     const takenAt = measuredAt ?? new Date();
     const isNewest = measuredAt === undefined || await isNewestReading(bin._id, measuredAt);
@@ -133,6 +133,7 @@ export async function applyDeviceLog(bin, {
         ...clockDiagnostics({ driftPpm, clockErrorSeconds }),
         connection: via,
         ...(gatewayId === null ? {} : { gatewayId }),
+        ...(viaLeafId === null ? {} : { viaLeafId }),
         ...(hops === null ? {} : { hops }),
         ...(rssi === null ? {} : { rssi }),
         severity,
@@ -208,7 +209,7 @@ export async function applyDeviceLog(bin, {
     }
     bin.status.weight = weightKg;
     bin.status.scale = scaleState;
-    bin.status.connection = { via, gatewayId, hops, rssi };
+    bin.status.connection = { via, gatewayId, viaLeafId, hops, rssi };
     bin.location.coordinates = location;
     bin.timezone = schedule.timeZone;
     await bin.save();

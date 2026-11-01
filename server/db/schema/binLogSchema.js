@@ -29,6 +29,8 @@ export const binLogSchema = new mongoose.Schema({
     clockErrorSeconds: { type: Number, min: -MAX_ABS_CLOCK_ERROR_SECONDS, max: MAX_ABS_CLOCK_ERROR_SECONDS },
     connection: { type: String, enum: ["cellular", "mesh"] },
     gatewayId: { type: mongoose.Schema.Types.ObjectId, ref: "Bin" },
+    // The relaying leaf between this device and its gateway (hops above 1).
+    viaLeafId: { type: mongoose.Schema.Types.ObjectId, ref: "Bin" },
     hops: { type: Number, min: 1, max: 8 },
     rssi: { type: Number, min: -128, max: 0 },
     // Kilograms, or null without a working, calibrated scale.

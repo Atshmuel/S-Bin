@@ -8,6 +8,7 @@ const INTERVAL_MINUTES = 720;  // missed twice plus the grace: 24 h 10 min
 const ago = hours => new Date(NOW - hours * HOUR_MS);
 const cellular = { via: 'cellular', gatewayId: null };
 const mesh = gatewayId => ({ via: 'mesh', gatewayId });
+const relayed = (gatewayId, viaLeafId) => ({ via: 'mesh', gatewayId, viaLeafId });
 const device = (id, lastHours, connection) => ({
     _id: id, ownerId: 'org', createdAt: ago(500), status: { updatedAt: ago(lastHours), connection },
 });
@@ -29,6 +30,9 @@ describe('upstreamId', () => {
     test('is the gateway of a leaf, null for a device with its own connection', () => {
         assert.equal(upstreamId(device('leaf', 1, mesh('gw'))), 'gw');
         assert.equal(upstreamId(device('bin', 1, cellular)), null);
+    });
+    test('is the relaying leaf when the report came through one', () => {
+        assert.equal(upstreamId(device('child', 1, relayed('gw', 'relay'))), 'relay');
     });
 });
 
@@ -54,5 +58,22 @@ describe('offlineCauses', () => {
     });
     test('devices that report are not listed', () => {
         assert.equal(causesOf([device('bin', 2, cellular)]).size, 0);
+    });
+});
+
+describe('offlineCauses behind a relay', () => {
+    test('a silent relay is the cause for the leaf behind it', () => {
+        const causes = causesOf([device('gw', 1, cellular), device('relay', 30, mesh('gw')), device('child', 30.1, relayed('gw', 'relay'))]);
+        assert.deepEqual(causes.get('relay'), { cause: 'self' });
+        assert.deepEqual(causes.get('child'), { cause: 'relay', relayId: 'relay' });
+    });
+    test('a leaf whose relay kept reporting is offline by itself', () => {
+        const causes = causesOf([device('gw', 1, cellular), device('relay', 1, mesh('gw')), device('child', 30, relayed('gw', 'relay'))]);
+        assert.deepEqual(causes.get('child'), { cause: 'self' });
+    });
+    test('a silent gateway is the relay\'s cause, and the relay is the leaf\'s', () => {
+        const causes = causesOf([device('gw', 30, cellular), device('relay', 30.1, mesh('gw')), device('child', 30.2, relayed('gw', 'relay'))]);
+        assert.deepEqual(causes.get('relay'), { cause: 'gateway', gatewayId: 'gw' });
+        assert.deepEqual(causes.get('child'), { cause: 'relay', relayId: 'relay' });
     });
 });

@@ -25,7 +25,8 @@ function isGatewayBin(bin) {
 
 // The user's devices, each with why it needs attention (possibly none); an
 // offline device also says why it is: { cause: 'self' } or, for a leaf behind
-// a silent gateway, { cause: 'gateway', gatewayId, gatewayName }.
+// a silent gateway, { cause: 'gateway', gatewayId, gatewayName } (or, behind a
+// silent relay leaf, { cause: 'relay', relayId, relayName }).
 export async function devicesWithReasons(user) {
     const now = Date.now();
     const devices = await binModel.find(scopeToOrganization({}, user), BIN_PUBLIC_PROJECTION).lean();
@@ -58,7 +59,9 @@ export async function devicesWithReasons(user) {
             ...(cause ? {
                 offlineCause: cause.cause === 'gateway'
                     ? { ...cause, gatewayName: names.get(String(cause.gatewayId)) ?? null }
-                    : cause,
+                    : cause.cause === 'relay'
+                        ? { ...cause, relayName: names.get(String(cause.relayId)) ?? null }
+                        : cause,
             } : {}),
         };
     });

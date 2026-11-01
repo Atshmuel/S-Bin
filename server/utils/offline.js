@@ -15,10 +15,11 @@ export function isOffline(device, intervalMinutes, now) {
     return !lastReport || now - new Date(lastReport).getTime() > allowedMs;
 }
 
-// The device a leaf's last report came through; null for a device with its
-// own connection.
+// The device a leaf's last report came through: the leaf that relayed it when
+// there was one, else its gateway; null for a device with its own connection.
 export function upstreamId(device) {
-    return device.status?.connection?.via === 'mesh' ? device.status.connection.gatewayId ?? null : null;
+    const connection = device.status?.connection;
+    return connection?.via === 'mesh' ? connection.viaLeafId ?? connection.gatewayId ?? null : null;
 }
 
 // Whether the upstream went silent with the device: a working one would have
@@ -32,7 +33,8 @@ function upstreamSilent(device, upstream, intervalMinutes) {
 }
 
 // Each offline device's cause by its id: { cause: 'gateway', gatewayId } when
-// its upstream is silent too, otherwise { cause: 'self' }. Intervals maps an
+// its upstream is silent too (or { cause: 'relay', relayId } when that upstream is
+// the leaf that relayed it, itself named by its own cause), otherwise { cause: 'self' }. Intervals maps an
 // organization's id to its report interval in minutes.
 export function offlineCauses(devices, intervals, now) {
     const byId = new Map(devices.map(device => [String(device._id), device]));
@@ -41,8 +43,9 @@ export function offlineCauses(devices, intervals, now) {
         const intervalMinutes = intervals.get(String(device.ownerId));
         if (!isOffline(device, intervalMinutes, now)) continue;
         const upstream = byId.get(String(upstreamId(device)));
+        const viaRelay = Boolean(device.status?.connection?.viaLeafId);
         causes.set(String(device._id), upstream && upstreamSilent(device, upstream, intervalMinutes)
-            ? { cause: 'gateway', gatewayId: upstream._id }
+            ? (viaRelay ? { cause: 'relay', relayId: upstream._id } : { cause: 'gateway', gatewayId: upstream._id })
             : { cause: 'self' });
     }
     return causes;

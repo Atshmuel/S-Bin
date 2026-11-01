@@ -494,7 +494,8 @@
         "offline": "לא מחובר",
         "offlineByGateway": "לא מחובר: השער {{name}} לא מחובר",
         "battery": "סוללה חלשה",
-        "health": "תקלה"
+        "health": "תקלה",
+        "offlineByRelay": "לא מחובר: המשדר {{name}} לא מחובר"
       },
       "tables": {
         "organizations": {
@@ -1001,7 +1002,8 @@
         "fillRate": "מתמלא בכ־{{rate}}% ביום · ידרוש איסוף {{when}}",
         "collectNow": "דורש איסוף עכשיו",
         "fillRateUnknown": "קצב מילוי: נדרשים עוד כמה דיווחים",
-        "notFilling": "לא מתמלא מאז שרוקן לאחרונה"
+        "notFilling": "לא מתמלא מאז שרוקן לאחרונה",
+        "viaRelay": "דרך המשדר"
       },
       "logsTable": {
         "title": "סקירת התיעודים של הפח",

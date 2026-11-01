@@ -482,7 +482,8 @@
         "offline": "Offline",
         "offlineByGateway": "Offline: gateway {{name}} is offline",
         "battery": "Low battery",
-        "health": "Health issue"
+        "health": "Health issue",
+        "offlineByRelay": "Offline: the relay {{name}} is offline"
       },
       "tables": {
         "organizations": {
@@ -980,7 +981,8 @@
         "fillRate": "Fills about {{rate}}% a day · needs collecting {{when}}",
         "collectNow": "Needs collecting now",
         "fillRateUnknown": "Fill rate: needs a few more reports",
-        "notFilling": "Not filling up since it was last emptied"
+        "notFilling": "Not filling up since it was last emptied",
+        "viaRelay": "relayed by"
       },
       "logsTable": {
         "title": "Log Overview",

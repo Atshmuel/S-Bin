@@ -64,6 +64,8 @@ export const binSchema = new mongoose.Schema({
         connection: {
             via: { type: String, enum: ["cellular", "mesh"], default: null },
             gatewayId: { type: mongoose.Schema.Types.ObjectId, ref: "Bin", default: null },
+            // The leaf that carried the report to the gateway, when it came by more than one hop.
+            viaLeafId: { type: mongoose.Schema.Types.ObjectId, ref: "Bin", default: null },
             hops: { type: Number, min: 1, max: 8, default: null },
             rssi: { type: Number, min: -128, max: 0, default: null },
         },

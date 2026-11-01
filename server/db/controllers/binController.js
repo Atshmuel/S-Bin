@@ -45,8 +45,12 @@ export async function getBin(req, res) {
         // can relay for mesh leaves: a gateway, or a bin that is also a gateway.
         const device = binData[0];
         if (device) {
+            // (A leaf that relayed for others names them too, whatever gateway they reach.)
             device.connectedLeaves = await binModel.find(
-                { ownerId: device.ownerId, 'status.connection.gatewayId': device._id },
+                {
+                    ownerId: device.ownerId,
+                    $or: [{ 'status.connection.gatewayId': device._id }, { 'status.connection.viaLeafId': device._id }],
+                },
                 { binName: 1, 'status.updatedAt': 1, 'status.connection.hops': 1, 'status.connection.rssi': 1 }
             ).lean();
             // When the device next reports, which is when it gets queued instructions.
@@ -54,6 +58,11 @@ export async function getBin(req, res) {
             device.reportSchedule = { reportIntervalMinutes, reportStartHour };
             // A leaf links to the gateway its last report came through.
             const gatewayId = device.status?.connection?.gatewayId;
+            // And to the leaf that relayed it, when it came by more than one hop.
+            const viaLeafId = device.status?.connection?.viaLeafId;
+            if (viaLeafId) {
+                device.relay = await binModel.findOne({ _id: viaLeafId, ownerId: device.ownerId }, { binName: 1 }).lean();
+            }
             if (gatewayId) {
                 device.gateway = await binModel.findOne(
                     { _id: gatewayId, ownerId: device.ownerId },
