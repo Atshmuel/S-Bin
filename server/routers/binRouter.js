@@ -3,7 +3,7 @@ import { authToken, authRole } from "../middlewares/authMiddleware.js";
 import { selectOrganization, validateBodyFields, validateParamExist, validateRequestBodyBinIds } from "../middlewares/validationMiddleware.js";
 import { deleteBin, getAllUserBins, getBin, getBinsInUserRadius, getMapBins, getMapExtent, deleteBinsBatch, updateBinMaintenance, removeBinConfigViaMAC, updateBinName } from "../db/controllers/binController.js";
 import { cancelDeviceInstruction, enqueueDeviceInstruction, listDeviceInstructions } from "../db/controllers/deviceInstructionController.js";
-import { createOrganizationJoinCode, getMeshSettings, updateMeshSettings } from "../db/controllers/organizationController.js";
+import { createOrganizationJoinCode, getMeshSettings, rotateOrganizationMeshKey, updateMeshSettings } from "../db/controllers/organizationController.js";
 import { getBinAnalytics } from "../db/controllers/analyticsController.js";
 import { ROLES } from "../utils/constants.js";
 
@@ -26,6 +26,9 @@ binRouter.patch('/mesh-settings/:orgId', (req, res, next) => {
 binRouter.post('/mesh-settings/:orgId/join-code', (req, res, next) => {
     authRole([ROLES.OWNER, ROLES.ADMIN])(req, res, next)
 }, createOrganizationJoinCode) //a one-time code for the leaf being added
+binRouter.post('/mesh-settings/:orgId/rotate-mesh-key', (req, res, next) => {
+    authRole([ROLES.OWNER, ROLES.ADMIN])(req, res, next)
+}, rotateOrganizationMeshKey) //a new generation of the organization's mesh key
 binRouter.get('/:id', validateParamExist(), getBin) //get bin
 binRouter.get('/:id/analytics/:section', getBinAnalytics) //one bin page analytics section (?range=7|30|90)
 binRouter.post('/radius', selectOrganization, validateBodyFields(['coordinates', 'radius'], ['health', 'minLevel', 'maxLevel', 'excludeReserved']), getBinsInUserRadius) //get bins

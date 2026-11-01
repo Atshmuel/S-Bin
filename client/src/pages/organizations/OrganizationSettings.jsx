@@ -6,6 +6,7 @@ import OrgDangerZoneSection from "@/components/organizations/OrgDangerZoneSectio
 import OrgDepotSection from "@/components/organizations/OrgDepotSection";
 import OrgRoutePlanningSection from "@/components/organizations/OrgRoutePlanningSection";
 import OrgMapSection from "@/components/organizations/OrgMapSection";
+import OrgMeshKeySection from "@/components/organizations/OrgMeshKeySection";
 import OrgCostsSection from "@/components/organizations/OrgCostsSection";
 import OrgThresholdsSection from "@/components/organizations/OrgThresholdsSection";
 import OrgFleetSection from "@/components/organizations/OrgFleetSection";
@@ -52,6 +53,7 @@ function OrganizationSettings() {
                 { id: "depot", element: <OrgDepotSection key={JSON.stringify(organization.depot ?? null)} id="depot" organization={organization} /> },
                 { id: "routePlanning", element: <OrgRoutePlanningSection key={String(organization.routePlanningHour)} id="routePlanning" organization={organization} /> },
                 { id: "costs", element: <OrgCostsSection key={JSON.stringify(organization.costs ?? {})} id="costs" organization={organization} /> },
+                { id: "meshKey", element: <OrgMeshKeySection id="meshKey" organization={organization} /> },
                 { id: "map", element: <OrgMapSection key={String(organization.clusterUntilZoom)} id="map" organization={organization} /> },
                 ...(isOwner ? [{ id: "danger", element: <OrgDangerZoneSection id="danger" organization={organization} /> }] : []),
             ]} />

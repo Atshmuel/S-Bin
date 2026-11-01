@@ -1262,7 +1262,8 @@
         "routePlanning": "Nightly routes",
         "map": "Map",
         "costs": "Costs",
-        "thresholds": "Thresholds"
+        "thresholds": "Thresholds",
+        "meshKey": "Security key"
       },
       "general": {
         "title": "General",
@@ -1411,6 +1412,17 @@
       "reporting": {
         "title": "Reporting",
         "startHourHint": "Local time at each device; the other reports follow at the interval."
+      },
+      "meshKey": {
+        "title": "Security key",
+        "description": "The key this organization's gateways and leaves sign their radio messages with, so nobody nearby can send fake readings or commands.",
+        "rotate": "Replace the key",
+        "rotateHint": "Gateways take the new key with their next report and give it to their leaves, which keep working with no new setup. Leaves on firmware older than 2.5.0 cannot take it and must be set up again. Use it for a lost or stolen device, or as a precaution.",
+        "rotateButton": "Replace",
+        "confirmTitle": "Replace the security key?",
+        "confirmDescription": "Gateways pick up the new key at their next report and pass it to their leaves in the next window. A leaf on firmware older than 2.5.0 loses contact until it is set up again. This cannot be undone.",
+        "rotated": "The security key was replaced (generation {{generation}}). Gateways take it with their next report.",
+        "typeName": "Type: '{{name}}' to replace the key"
       }
     },
     "binCard": {

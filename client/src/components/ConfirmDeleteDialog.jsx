@@ -9,8 +9,9 @@ import { useAppSide } from "@/hooks/useAppSide"
 // "delete" in either language.
 const DELETE_WORDS = ["delete", "מחק"]
 
-// A deletion the user confirms by typing a word: "delete" unless confirmWords says otherwise.
-function ConfirmDeleteDialog({ trigger, title, description, inputLabel, confirmWords = DELETE_WORDS, isDeleting, onConfirm }) {
+// A deletion (or another step that cannot be undone, with its own confirmLabel) the user
+// confirms by typing a word: "delete" unless confirmWords says otherwise.
+function ConfirmDeleteDialog({ trigger, title, description, inputLabel, confirmWords = DELETE_WORDS, confirmLabel, isDeleting, onConfirm }) {
     const { t } = useTranslation()
     const { isRight, side } = useAppSide()
     const [input, setInput] = useState('')
@@ -31,7 +32,7 @@ function ConfirmDeleteDialog({ trigger, title, description, inputLabel, confirmW
                         <Button disabled={isDeleting} className="cursor-pointer" variant='outline'>{t('cancel')}</Button>
                     </DialogClose>
                     <Button className="cursor-pointer" disabled={!confirmed || isDeleting} variant='destructive' onClick={onConfirm}>
-                        {isDeleting ? <Spinner /> : t('delete')}
+                        {isDeleting ? <Spinner /> : (confirmLabel ?? t('delete'))}
                     </Button>
                 </DialogFooter>
             </DialogContent>

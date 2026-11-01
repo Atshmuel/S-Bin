@@ -5,6 +5,7 @@ import { COST_SETTINGS, THRESHOLD_SETTINGS, MAX_MESH_AWAKE_WINDOW_SECONDS, REPOR
 import { ROLES } from "../../utils/constants.js";
 import { generateRegistrationCode } from "../../utils/registrationCode.js";
 import { createJoinCode } from "../service/joinService.js";
+import { rotateMeshKey } from "../service/meshKeyService.js";
 
 const MESH_SETTINGS_PROJECTION = {
     name: 1, meshAwakeWindowSeconds: 1, reportIntervalMinutes: 1, reportStartHour: 1, fleet: 1, depot: 1, routePlanningHour: 1, lastAutoPlan: 1,
@@ -104,6 +105,32 @@ export async function createOrganizationJoinCode(req, res) {
         return res.status(201).json(await createJoinCode(orgId, id));
     } catch (error) {
         return res.status(500).json({ message: error?.message || "Internal server error 'createOrganizationJoinCode'" });
+    }
+}
+
+// A new generation of the organization's mesh key (see utils/meshKeys.js): owners
+// for any organization, admins for their own. Its gateways take the new key with
+// their next report and give it to their leaves, which still hold the one before;
+// a leaf on firmware older than 2.5.0 cannot take it and must be set up again.
+// The key never leaves the server: the answer is only the generation's number.
+export async function rotateOrganizationMeshKey(req, res) {
+    const { orgId } = req.params;
+    const { role, org, id } = req.user;
+    if (!mongoose.Types.ObjectId.isValid(orgId)) {
+        return res.status(400).json({ message: "Invalid organization ID." });
+    }
+    if (role !== ROLES.OWNER && orgId !== org) {
+        return res.status(403).json({ message: "You can only change your own organization's mesh key." });
+    }
+    try {
+        const rotated = await rotateMeshKey(orgId);
+        if (!rotated) {
+            return res.status(404).json({ message: "Organization not found." });
+        }
+        console.log(`[Mesh] The mesh key of organization ${orgId} is now generation ${rotated.meshKeyId} (by user ${id}).`);
+        return res.status(200).json({ meshKeyId: rotated.meshKeyId });
+    } catch (error) {
+        return res.status(500).json({ message: error?.message || "Internal server error 'rotateOrganizationMeshKey'" });
     }
 }
 
