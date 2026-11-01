@@ -44,12 +44,17 @@ struct ForwardAction {
 ForwardAction prepareForward(const uint8_t* frame, size_t length, const uint8_t ownMac[MAC_LENGTH],
                              const uint8_t parentMac[MAC_LENGTH], uint8_t out[MAX_FRAME_SIZE]);
 
-// The last frames passed on, by sender and message ID, so a retry or a copy heard
-// twice is passed on once. A ring: the oldest is forgotten first.
+// The last frames passed on, by sender and message ID, so a copy heard twice (a frame
+// that reached the relay by two paths) is passed on once. Only for a moment: a leaf's
+// retry comes much later, when the first try may have been lost, and must pass.
+// A ring: the oldest is forgotten first.
 class RelayMemory {
 public:
-    // True when this pair was passed on before; otherwise remembers it.
-    bool seen(const uint8_t origin[MAC_LENGTH], uint32_t messageId);
+    static constexpr uint32_t DUPLICATE_WINDOW_MS = 300;
+
+    // True when this pair was passed on within the last DUPLICATE_WINDOW_MS; otherwise
+    // remembers it (at nowMs).
+    bool seen(const uint8_t origin[MAC_LENGTH], uint32_t messageId, uint32_t nowMs);
     void reset();
 
 private:
@@ -57,6 +62,7 @@ private:
     struct Entry {
         uint8_t origin[MAC_LENGTH];
         uint32_t messageId;
+        uint32_t atMs;
         bool used;
     };
     Entry entries_[SIZE] = {};

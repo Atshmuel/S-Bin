@@ -93,15 +93,20 @@ ForwardAction prepareForward(const uint8_t* frame, size_t length, const uint8_t 
     return action;
 }
 
-bool RelayMemory::seen(const uint8_t origin[MAC_LENGTH], uint32_t messageId) {
-    for (const Entry& entry : entries_) {
+bool RelayMemory::seen(const uint8_t origin[MAC_LENGTH], uint32_t messageId, uint32_t nowMs) {
+    for (Entry& entry : entries_) {
         if (entry.used && entry.messageId == messageId && memcmp(entry.origin, origin, MAC_LENGTH) == 0) {
-            return true;
+            if (nowMs - entry.atMs < DUPLICATE_WINDOW_MS) {
+                return true;
+            }
+            entry.atMs = nowMs;  // a retry: passed on again, and remembered from now
+            return false;
         }
     }
     Entry& slot = entries_[next_];
     memcpy(slot.origin, origin, MAC_LENGTH);
     slot.messageId = messageId;
+    slot.atMs = nowMs;
     slot.used = true;
     next_ = (next_ + 1) % SIZE;
     return false;

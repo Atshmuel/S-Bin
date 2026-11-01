@@ -283,6 +283,11 @@ RelayUploadResult publishRelayRecord(const RelayRecord& record, unsigned long ti
     doc["leafMac"] = leafMac;
     doc["messageId"] = data.header.messageId;
     doc["hops"] = record.hops;
+    if (record.hops > 1) {
+        char viaMac[18];
+        sbinmesh::formatMac(record.viaMac, viaMac);
+        doc["viaMac"] = viaMac;
+    }
     doc["rssi"] = record.rssi;
     if (record.measuredAtEpoch > 0) {
         doc["measuredAt"] = record.measuredAtEpoch;

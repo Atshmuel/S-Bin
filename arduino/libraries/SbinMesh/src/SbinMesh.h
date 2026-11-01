@@ -22,14 +22,18 @@ struct ReceivedFrame {
     uint8_t sender[MAC_LENGTH];   // neighbour that transmitted it; not necessarily the origin
     int8_t rssi;                  // dBm at this node
     uint32_t receivedAtMs;        // millis() when it arrived
+    // Heard by a relaying leaf, for another node: its tag was not checked (the relay holds
+    // no key for it). Only the relay's forwarding may look at it.
+    bool unverified;
 
     const PacketHeader& header() const {
         return *reinterpret_cast<const PacketHeader*>(data);
     }
-    // Returns the packet as T, or nullptr when the frame has the wrong type or size.
+    // Returns the packet as T, or nullptr when the frame has the wrong type or size, or
+    // was not checked (a relay's forwarding reads those through data).
     template <typename T>
     const T* as(PacketType type) const {
-        return header().type == type && length >= sizeof(T)
+        return !unverified && header().type == type && length >= sizeof(T)
             ? reinterpret_cast<const T*>(data)
             : nullptr;
     }
@@ -89,6 +93,13 @@ public:
     // MeshAuth) without reaching the caller.
     bool receive(ReceivedFrame& frame, uint32_t timeoutMs);
 
+    // Bench tests only: frames sent by this neighbour are dropped on arrival, so two nodes
+    // that hear each other can be made to act as if they were out of range.
+    void ignoreSender(const uint8_t mac[MAC_LENGTH]) {
+        memcpy(ignoredSender_, mac, MAC_LENGTH);
+        ignoresSender_ = true;
+    }
+
 private:
     bool ensurePeer(const uint8_t mac[MAC_LENGTH]);
 
@@ -105,6 +116,8 @@ private:
     uint8_t pendingDestination_[MAC_LENGTH] = {};
     MeshAuth* auth_ = nullptr;
     bool warnedNoKey_ = false;
+    uint8_t ignoredSender_[MAC_LENGTH] = {};
+    bool ignoresSender_ = false;
 };
 
 }  // namespace sbinmesh

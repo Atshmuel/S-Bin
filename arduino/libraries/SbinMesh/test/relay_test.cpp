@@ -263,14 +263,17 @@ static void testLimits() {
 
 static void testMemoryAndBudget() {
     RelayMemory memory;
-    CHECK(!memory.seen(CHILD_MAC, 7));
-    CHECK(memory.seen(CHILD_MAC, 7));                 // a retry or a copy
-    CHECK(!memory.seen(CHILD_MAC, 8));
-    CHECK(!memory.seen(OTHER_MAC, 7));                // another sender's same ID
-    for (uint32_t id = 100; id < 100 + 40; id++) memory.seen(CHILD_MAC, id);
-    CHECK(!memory.seen(CHILD_MAC, 7));                // the ring forgot the oldest
+    CHECK(!memory.seen(CHILD_MAC, 7, 1000));
+    CHECK(memory.seen(CHILD_MAC, 7, 1100));           // a copy heard by two paths
+    CHECK(!memory.seen(CHILD_MAC, 7, 2600));          // a retry 1.5 s later passes
+    CHECK(memory.seen(CHILD_MAC, 7, 2700));           // but not its copy
+    CHECK(!memory.seen(CHILD_MAC, 8, 2700));
+    CHECK(!memory.seen(OTHER_MAC, 7, 2700));          // another sender's same ID
+    for (uint32_t id = 100; id < 100 + 40; id++) memory.seen(CHILD_MAC, id, 3000);
+    CHECK(!memory.seen(CHILD_MAC, 8, 3050));          // the ring forgot the oldest
     memory.reset();
-    CHECK(!memory.seen(CHILD_MAC, 100));
+    CHECK(!memory.seen(CHILD_MAC, 100, 5000));
+    CHECK(!memory.seen(CHILD_MAC, 100, 5000 + RelayMemory::DUPLICATE_WINDOW_MS));
 
     RelayBudget budget;
     for (uint16_t i = 0; i < RelayBudget::UP; i++) CHECK(budget.take(ForwardKind::UP));
@@ -281,7 +284,31 @@ static void testMemoryAndBudget() {
     CHECK(budget.take(ForwardKind::UP));
 }
 
+static void testRelayRequest() {
+    const Key org = rangeKey(6);
+    MeshAuth gateway;
+    gateway.useOrganizationKey(org, 1);
+    MeshAuth relay = leafOf(org, RELAY_MAC, 1);
+    MeshAuth joining;
+    joining.useJoining(CHILD_MAC);
+
+    RelayRequestPacket request = {};
+    fillHeader(request.header, PACKET_RELAY_REQUEST, CHILD_MAC);
+    uint8_t frame[sizeof(request)];
+    memcpy(frame, &request, sizeof(request));
+    CHECK(sizeof(RelayRequestPacket) == sizeof(PacketHeader));
+    CHECK(relay.verify(frame, sizeof(frame)) == AuthResult::OK);               // a keyed leaf hears it
+    CHECK(gateway.verify(frame, sizeof(frame)) == AuthResult::NOT_FOR_ME);     // a gateway has no use for it
+    CHECK(joining.verify(frame, sizeof(frame)) == AuthResult::NOT_FOR_ME);
+    CHECK(relay.verify(frame, sizeof(frame) - 1) == AuthResult::BAD_LENGTH);
+    CHECK(relay.verify(frame, sizeof(frame)) == AuthResult::OK && relay.dropped(AuthResult::BAD_LENGTH) == 1);
+    // It is never itself passed on.
+    uint8_t out[MAX_FRAME_SIZE];
+    CHECK(prepareForward(frame, sizeof(frame), RELAY_MAC, GATEWAY_MAC, out).kind == ForwardKind::NONE);
+}
+
 int main() {
+    testRelayRequest();
     testBeaconRebroadcast();
     testDataGoesUp();
     testAckGoesDown();

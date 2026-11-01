@@ -265,6 +265,14 @@ AuthResult MeshAuth::check(const uint8_t* frame, size_t length) const {
             }
             return relaying_ ? AuthResult::FORWARD : AuthResult::NOT_FOR_ME;
         }
+        case PACKET_RELAY_REQUEST: {
+            if (length != sizeof(RelayRequestPacket)) {
+                return AuthResult::BAD_LENGTH;
+            }
+            // Unsigned (the asking leaf hears no gateway to check against); a keyed leaf
+            // decides whether it can relay, and it costs it at most the rest of one window.
+            return role_ == Role::Leaf ? AuthResult::OK : AuthResult::NOT_FOR_ME;
+        }
         case PACKET_JOIN_REPLY: {
             if (length != sizeof(JoinReplyPacket)) {
                 return AuthResult::BAD_LENGTH;

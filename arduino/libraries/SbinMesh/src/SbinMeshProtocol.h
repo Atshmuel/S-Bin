@@ -35,6 +35,8 @@ enum PacketType : uint8_t {
     PACKET_JOIN_REPLY = 5,
     // A gateway gives a leaf the next generation's keys (SbinMeshKeyUpdate.h).
     PACKET_KEY_UPDATE = 6,
+    // A leaf that hears no gateway asks any leaf that does to relay for it (SbinMeshRelay.h).
+    PACKET_RELAY_REQUEST = 7,
 };
 
 enum AckStatus : uint8_t {
@@ -252,6 +254,12 @@ struct __attribute__((packed)) KeyUpdatePacket {
     uint8_t iv[JOIN_IV_LENGTH];
     uint8_t sealed[JOIN_SEALED_LENGTH];
     uint8_t tag[JOIN_TAG_LENGTH];
+};
+
+// Broadcast by a leaf that hears no gateway (header.origin is its MAC), unsigned: a leaf
+// that hears a gateway and can relay then passes packets for it until that window closes.
+struct __attribute__((packed)) RelayRequestPacket {
+    PacketHeader header;
 };
 
 static_assert(sizeof(PacketHeader) == 21, "PacketHeader layout changed");

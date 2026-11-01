@@ -37,6 +37,9 @@ constexpr uint32_t LATE_ACK_INTERVAL_MS = 1000;
 // relayed the window stays open this long, so the reply can reach the leaf, which
 // listens for it. The server's answer is awaited this long.
 constexpr uint32_t JOIN_WINDOW_EXTENSION_MS = 25000;
+// A reading that came through a relaying leaf keeps the window open this long: the relay
+// stays for the ACK, and more readings of leaves behind it may follow.
+constexpr uint32_t RELAYED_READING_WINDOW_EXTENSION_MS = 5000;
 constexpr unsigned long JOIN_RESULT_TIMEOUT_MS = 10000;
 // The reply goes to the leaf until the radio confirms it, this many tries.
 constexpr uint8_t MAX_JOIN_REPLY_ATTEMPTS = 8;
@@ -368,12 +371,20 @@ void handleMeshFrame(const ReceivedFrame& frame) {
 
     const uint8_t* origin = data->header.origin;
     const uint32_t messageId = data->header.messageId;
+    // A leaf out of range is served through another leaf (SbinMeshRelay.h); its ACK goes
+    // back the same way, so the window stays open for it.
+    if (data->header.hops > 0) {
+        extendMeshWindow(RELAYED_READING_WINDOW_EXTENSION_MS);
+    }
     const bool duplicate = duplicateFilter.checkAndRemember(origin, messageId) ||
                            relayQueueContains(origin, messageId);
     if (!duplicate) {
         RelayRecord record = {};
         record.data = *data;
         record.hops = static_cast<uint8_t>(data->header.hops + 1);
+        if (!macEquals(origin, frame.sender)) {
+            memcpy(record.viaMac, frame.sender, MAC_LENGTH);
+        }
         record.rssi = frame.rssi;
         // The leaf sends the reading's age; this gateway's clock is network
         // time (no window opens without it), so the reading's UTC time is fixed
@@ -597,6 +608,11 @@ void beginMeshWindow() {
     }
     applyMeshKeys(meshAuth);
     meshRadio.setAuth(&meshAuth);
+#ifdef SBIN_TEST_BLIND_TO_MAC
+    // Bench test of the relay: this gateway acts as if the leaf with this MAC were out of range.
+    static const uint8_t blindToMac[MAC_LENGTH] = SBIN_TEST_BLIND_TO_MAC;
+    meshRadio.ignoreSender(blindToMac);
+#endif
     // A new random nonce for this window, once the radio is on (its random
     // numbers are only truly random then).
     meshAuth.startWindow(MeshRadio::newMessageId());

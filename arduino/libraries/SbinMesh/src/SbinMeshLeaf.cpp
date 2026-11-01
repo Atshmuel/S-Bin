@@ -12,6 +12,7 @@
 #include "SbinMesh.h"
 #include "SbinMeshJoin.h"
 #include "SbinMeshKeyUpdate.h"
+#include "SbinMeshRelay.h"
 
 namespace sbinmesh {
 
@@ -68,6 +69,21 @@ constexpr uint32_t LISTEN_SLACK_SECONDS = 5;
 // the radio on for the rest of the window, so a leaf does it only when its
 // slots are this far apart: a command otherwise waits one cycle, which is short.
 constexpr uint32_t LATE_COMMAND_MIN_SLOT_GAP_SECONDS = 3UL * 60UL * 60UL;
+// A leaf that hears no gateway asks the leaves around to relay (SbinMeshRelay.h): every
+// 2 s from the slot on, every 5 s when it has no slot to wait for. A beacon relayed by a
+// leaf is used only when no gateway's came in this long after the first one (a gateway
+// heard directly is the better path), and only from a relay not much weaker than the best.
+constexpr uint32_t RELAY_REQUEST_SCHEDULED_INTERVAL_MS = 2000;
+constexpr uint32_t RELAY_REQUEST_COLD_INTERVAL_MS = 5000;
+constexpr uint32_t RELAYED_BEACON_HOLD_MS = 2000;
+constexpr int8_t RELAY_RSSI_TOLERANCE_DB = 6;
+// A leaf relays for others only with this much battery (0: not known), for the slots of
+// one or more hours apart that LATE_COMMAND_MIN_SLOT_GAP_SECONDS asks of every leaf that listens on.
+constexpr uint8_t RELAY_MIN_BATTERY_PERCENT = 30;
+// A relay stays awake this long after passing a reading up (the gateway's ACK is on its
+// way down), or an ACK down, even when the window was about to close.
+constexpr uint32_t RELAY_UP_LINGER_MS = 4000;
+constexpr uint32_t RELAY_DOWN_LINGER_MS = 2000;
 // A JOIN: how long the answer is awaited (the gateway keeps its window open for
 // it, and answers the JOINs of many leaves one at a time), the delay before
 // sending, random so leaves started together do not transmit at the same moment
@@ -146,6 +162,13 @@ bool lastAckHadCommand = false;
 // The gateway said new keys follow, and whether they came (and were saved).
 bool keyUpdateExpected = false;
 bool keyUpdateSaved = false;
+// The beacon this wake follows came straight from a gateway, not through a relay; the
+// battery of the last reading made; and a relay's state in this window.
+bool beaconWasDirect = false;
+uint8_t ownBatteryPercent = 0;
+bool relayActive = false;
+RelayMemory relayMemory;
+RelayBudget relayBudget;
 
 bool clockValid() {
     return isValidEpoch(time(nullptr));
@@ -189,6 +212,7 @@ DataPacket makeReading() {
     memcpy(reading.diagnostics.firmwareVersion, config->firmwareVersion, sizeof(config->firmwareVersion));
     reading.diagnostics.resetReason = static_cast<uint8_t>(esp_reset_reason());
     config->hooks.fillReading(reading);
+    ownBatteryPercent = reading.battery;
     return reading;
 }
 
@@ -314,40 +338,79 @@ void applyBeacon(const BeaconPacket& beacon, const ReceivedFrame& frame, bool at
     memcpy(gatewayMac, frame.sender, MAC_LENGTH);
 }
 
-// Listens up to listenMs for a beacon sent directly by a gateway.
+// Checks a beacon's time and, if it is fresh, takes the clock, window and schedule from it.
+bool useBeacon(const BeaconPacket& beacon, const ReceivedFrame& frame, bool atScheduledSlot) {
+    if (!isValidEpoch(static_cast<int64_t>(beacon.epochMs / 1000))) {
+        return false;
+    }
+    // The signature says it is a gateway's; its time says it is not an old
+    // recording. Checked against this clock only on a scheduled wake (in a
+    // cold join the clock may be anywhere), by as much as the guard covers.
+    const int64_t beaconNowMs = static_cast<int64_t>(beacon.epochMs) + (millis() - frame.receivedAtMs);
+    const int64_t toleranceMs =
+        static_cast<int64_t>(guardSeconds + meshWindowSeconds + LISTEN_SLACK_SECONDS) * 1000;
+    if (!beaconTimeIsFresh(atScheduledSlot && clockValid(), beaconNowMs, epochMsNow(), toleranceMs)) {
+        Serial.printf("⚠️ A beacon's time is %+lld s from this clock; ignored.\n",
+                      static_cast<long long>((beaconNowMs - epochMsNow()) / 1000));
+        return false;
+    }
+    windowNonce = beacon.cycleNonce;
+    beaconWasDirect = beacon.hopsToGateway == 0;
+    char macText[18];
+    formatMac(frame.sender, macText);
+    Serial.printf("📶 Beacon #%lu %s %s, RSSI %d dBm, next wake %lu, window %u s.\n",
+                  static_cast<unsigned long>(beacon.beaconSeq), beaconWasDirect ? "from gateway" : "relayed by leaf",
+                  macText, frame.rssi, static_cast<unsigned long>(beacon.nextWakeEpoch), beacon.meshWindowSeconds);
+    applyBeacon(beacon, frame, atScheduledSlot);
+    return true;
+}
+
+// Listens up to listenMs for a gateway's beacon: one sent straight from a gateway, or, when
+// none comes, one a relaying leaf repeats. Asks the leaves around to relay once the
+// gateway's window should have opened.
 bool waitForBeacon(uint32_t listenMs, bool atScheduledSlot) {
     const uint32_t startedAt = millis();
     ReceivedFrame frame;
+    bool sawRelayed = false;
+    uint32_t sawRelayedAtMs = 0;
+    int8_t bestRelayedRssi = -127;
+    bool asked = false;
+    uint32_t askedAtMs = 0;
+    const uint32_t askEveryMs = atScheduledSlot ? RELAY_REQUEST_SCHEDULED_INTERVAL_MS : RELAY_REQUEST_COLD_INTERVAL_MS;
     while (millis() - startedAt < listenMs) {
+        const bool slotStarted = !atScheduledSlot ||
+            (clockValid() && epochMsNow() >= static_cast<int64_t>(nextWakeEpoch) * 1000);
+        if (slotStarted && (!asked || millis() - askedAtMs >= askEveryMs)) {
+            RelayRequestPacket request = {};
+            radio.initHeader(request.header, PACKET_RELAY_REQUEST);
+            radio.broadcast(&request, sizeof(request));
+            if (!asked) {
+                Serial.println("📣 No gateway beacon yet: asking the leaves around to relay.");
+            }
+            asked = true;
+            askedAtMs = millis();
+        }
         if (!radio.receive(frame, 100)) {
             continue;
         }
         const BeaconPacket* beacon = frame.as<BeaconPacket>(PACKET_BEACON);
-        // Phase 1 is a star: only beacons straight from a gateway are used.
-        if (beacon == nullptr || beacon->hopsToGateway != 0 ||
-            !isValidEpoch(static_cast<int64_t>(beacon->epochMs / 1000))) {
+        if (beacon == nullptr || beacon->hopsToGateway > 1) {
             continue;
         }
-        // The signature says it is a gateway's; its time says it is not an old
-        // recording. Checked against this clock only on a scheduled wake (in a
-        // cold join the clock may be anywhere), by as much as the guard covers.
-        const int64_t beaconNowMs = static_cast<int64_t>(beacon->epochMs) + (millis() - frame.receivedAtMs);
-        const int64_t toleranceMs =
-            static_cast<int64_t>(guardSeconds + meshWindowSeconds + LISTEN_SLACK_SECONDS) * 1000;
-        if (!beaconTimeIsFresh(atScheduledSlot && clockValid(), beaconNowMs, epochMsNow(), toleranceMs)) {
-            Serial.printf("⚠️ A beacon's time is %+lld s from this clock; ignored.\n",
-                          static_cast<long long>((beaconNowMs - epochMsNow()) / 1000));
-            continue;
+        if (beacon->hopsToGateway == 1) {
+            if (!sawRelayed) {
+                sawRelayed = true;
+                sawRelayedAtMs = millis();
+            }
+            bestRelayedRssi = max(bestRelayedRssi, frame.rssi);
+            if (millis() - sawRelayedAtMs < RELAYED_BEACON_HOLD_MS ||
+                frame.rssi < bestRelayedRssi - RELAY_RSSI_TOLERANCE_DB) {
+                continue;
+            }
         }
-        windowNonce = beacon->cycleNonce;
-        char macText[18];
-        formatMac(frame.sender, macText);
-        Serial.printf("📶 Beacon #%lu from gateway %s, RSSI %d dBm, next wake %lu, window %u s.\n",
-                      static_cast<unsigned long>(beacon->beaconSeq), macText, frame.rssi,
-                      static_cast<unsigned long>(beacon->nextWakeEpoch),
-                      beacon->meshWindowSeconds);
-        applyBeacon(*beacon, frame, atScheduledSlot);
-        return true;
+        if (useBeacon(*beacon, frame, atScheduledSlot)) {
+            return true;
+        }
     }
     return false;
 }
@@ -469,28 +532,101 @@ void waitForKeyUpdate() {
     }
 }
 
-// The gateway's server answer can come after the ACK of the reading: listens
-// to the end of its window for a second ACK for that reading with a command,
-// runs it and sends the result if the window is still open (else next cycle).
-void waitForLateCommand() {
-    if (pendingCount > 0 || lastAckHadCommand || lastDeliveredMessageId == 0 ||
-        slotGapSeconds < LATE_COMMAND_MIN_SLOT_GAP_SECONDS) {
+// A leaf that heard its gateway directly, hours between its slots and battery to spare
+// may relay for a leaf that hears no gateway.
+bool canRelayForOthers() {
+    return config->relayForOthers && beaconWasDirect && slotGapSeconds >= LATE_COMMAND_MIN_SLOT_GAP_SECONDS &&
+           (ownBatteryPercent == 0 || ownBatteryPercent >= RELAY_MIN_BATTERY_PERCENT);
+}
+
+// Passes on, if the relay rules allow it, a frame heard in the window: the gateway's
+// beacons (repeated for the leaf that asked), its DATA up, ACKs and key updates down.
+void relayFrame(const ReceivedFrame& frame) {
+    if (frame.header().type == PACKET_BEACON && !macEquals(frame.sender, gatewayMac)) {
+        return;  // only the gateway this leaf follows
+    }
+    uint8_t out[MAX_FRAME_SIZE];
+    const ForwardAction action = prepareForward(frame.data, frame.length, radio.macAddress(), gatewayMac, out);
+    if (action.kind == ForwardKind::NONE) {
         return;
     }
+    // A beacon is repeated every time the gateway sends one (a budget caps them); the rest
+    // once per frame, so a copy heard twice is not sent twice, but a retry is.
+    if (action.kind != ForwardKind::BEACON &&
+        relayMemory.seen(frame.header().origin, frame.header().messageId, millis())) {
+        return;
+    }
+    if (!relayBudget.take(action.kind)) {
+        return;
+    }
+    if (action.kind == ForwardKind::BEACON) {
+        radio.broadcast(out, action.length);
+        return;
+    }
+    const bool up = action.kind == ForwardKind::UP;
+    char macText[18];
+    formatMac(frame.header().origin, macText);
+    if (!radio.sendTo(action.destination, out, action.length)) {
+        Serial.printf("⚠️ Relay: %s from %s was not taken by its next hop.\n", up ? "a reading" : "an answer", macText);
+    } else {
+        Serial.printf("🔁 Relay: %s %s passed %s.\n", up ? "reading from" : "answer for", macText, up ? "up" : "down");
+    }
+    // The answer is on its way back, or the leaf is to be heard again: stay for it.
+    const uint32_t stayUntil = millis() + (up ? RELAY_UP_LINGER_MS : RELAY_DOWN_LINGER_MS);
+    if (static_cast<int32_t>(stayUntil - windowEndAtMs) > 0) {
+        windowEndAtMs = stayUntil;
+    }
+}
+
+// The rest of the gateway's window, after the readings went out. A leaf listens on
+//  - for the gateway's server answer, which can come after the ACK of the reading: a second
+//    ACK for that reading with a command, run at once (the result goes out if the window is
+//    still open, else next cycle), when its slots are far enough apart for that to pay;
+//  - to relay for a leaf that asks and hears no gateway (canRelayForOthers): from its
+//    request to the end of the window it passes that leaf's packets.
+void listenToWindowEnd() {
+    bool wantsLateCommand = !(pendingCount > 0 || lastAckHadCommand || lastDeliveredMessageId == 0 ||
+                              slotGapSeconds < LATE_COMMAND_MIN_SLOT_GAP_SECONDS);
+    const bool mayRelay = canRelayForOthers();
+    if (!wantsLateCommand && !mayRelay) {
+        return;
+    }
+    relayActive = false;
+    relayMemory.reset();
+    relayBudget.reset();
     ReceivedFrame frame;
-    while (static_cast<int32_t>(windowEndAtMs - millis()) > 0) {
+    while (static_cast<int32_t>(windowEndAtMs - millis()) > 0 && (wantsLateCommand || mayRelay)) {
         if (!radio.receive(frame, 100)) {
             continue;
         }
+        if (mayRelay && frame.header().type == PACKET_RELAY_REQUEST && !frame.unverified) {
+            if (!relayActive) {
+                char macText[18];
+                formatMac(frame.header().origin, macText);
+                Serial.printf("🤝 Leaf %s hears no gateway and asked for a relay: relaying until the window closes.\n",
+                              macText);
+                relayActive = true;
+                meshAuth.setRelaying(true);
+            }
+            continue;
+        }
+        if (relayActive && (frame.unverified || frame.header().type == PACKET_BEACON)) {
+            relayFrame(frame);
+            continue;
+        }
         const AckPacket* late = frame.as<AckPacket>(PACKET_ACK);
-        if (late == nullptr || late->ackedMessageId != lastDeliveredMessageId ||
+        if (!wantsLateCommand || late == nullptr || late->ackedMessageId != lastDeliveredMessageId ||
             !macEquals(late->ackedOrigin, radio.macAddress()) || late->instructionType == INSTRUCTION_NONE) {
             continue;
         }
         Serial.printf("📬 A command came after the reading's ACK (type %u).\n", late->instructionType);
         runInstruction(*late);
         sendPendingReadings();
-        return;
+        wantsLateCommand = false;
+    }
+    if (relayActive) {
+        meshAuth.setRelaying(false);
+        relayActive = false;
     }
 }
 
@@ -588,6 +724,9 @@ bool startRadio() {
     memcpy(beaconKey.bytes, config->keys.beaconKey, KEY_LENGTH);
     meshAuth.useLeafKeys(radio.macAddress(), leafKey, beaconKey, config->keys.keyId);
     radio.setAuth(&meshAuth);
+    if (config->ignoreSender != nullptr) {
+        radio.ignoreSender(config->ignoreSender);
+    }
     return true;
 }
 }  // namespace
@@ -757,7 +896,7 @@ LeafExchange runLeafExchange(const LeafConfig& leafConfig, uint32_t listenMs) {
         result.heardBeacon = true;
         sendPendingReadings();
         waitForKeyUpdate();
-        waitForLateCommand();
+        listenToWindowEnd();
         result.delivered = pendingCount == 0;
         result.nextWakeEpoch = nextWakeEpoch;
     } else {
@@ -821,7 +960,7 @@ void runLeafCycle(const LeafConfig& leafConfig) {
 
     sendPendingReadings();
     waitForKeyUpdate();
-    waitForLateCommand();
+    listenToWindowEnd();
     if (config->hooks.afterDelivery != nullptr) {
         config->hooks.afterDelivery();
     }

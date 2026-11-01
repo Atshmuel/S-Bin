@@ -54,9 +54,9 @@ constexpr uint32_t USB_LOG_RECONNECT_WAIT_MS = 3000;
 
 // This firmware's version, reported in every diagnostics block (semver; bump
 // it by hand for every flash).
-constexpr char FIRMWARE_VERSION[] = "2.6.0";
+constexpr char FIRMWARE_VERSION[] = "2.7.0";
 // The same as numbers, for a leaf's diagnostics (keep the two in step).
-constexpr uint8_t FIRMWARE_VERSION_NUMBERS[3] = {2, 6, 0};
+constexpr uint8_t FIRMWARE_VERSION_NUMBERS[3] = {2, 7, 0};
 
 // The S-Bin servers (2i): registration over HTTPS, reports over MQTT with TLS
 // on the private broker, both checked against SBIN_CA_FILE in the modem.
@@ -237,6 +237,7 @@ void addFaults(
 struct RelayRecord {
     sbinmesh::DataPacket data;
     uint8_t hops;   // radio hops the reading travelled to reach this gateway
+    uint8_t viaMac[sbinmesh::MAC_LENGTH];  // the leaf that relayed it, all zero when heard directly
     int8_t rssi;    // dBm of the last hop
     uint32_t measuredAtEpoch;  // UTC when the leaf took the reading, 0 when unknown
 };

@@ -200,7 +200,12 @@ bool MeshRadio::receive(ReceivedFrame& frame, uint32_t timeoutMs) {
             return false;
         }
         if (auth_ != nullptr && auth_->hasKey()) {
-            if (auth_->verify(frame.data, frame.length) == AuthResult::OK) {
+            const AuthResult result = auth_->verify(frame.data, frame.length);
+            if (result == AuthResult::OK) {
+                return true;
+            }
+            if (result == AuthResult::FORWARD) {
+                frame.unverified = true;
                 return true;
             }
         } else if (!warnedNoKey_) {
@@ -233,6 +238,10 @@ void MeshRadio::onReceive(const esp_now_recv_info_t* info, const uint8_t* data, 
     memcpy(frame.sender, info->src_addr, MAC_LENGTH);
     frame.rssi = info->rx_ctrl == nullptr ? 0 : static_cast<int8_t>(info->rx_ctrl->rssi);
     frame.receivedAtMs = millis();
+    frame.unverified = false;
+    if (radio->ignoresSender_ && macEquals(info->src_addr, radio->ignoredSender_)) {
+        return;
+    }
     // With the queue full the frame is dropped; the sender retries.
     xQueueSend(static_cast<QueueHandle_t>(radio->receiveQueue_), &frame, 0);
 }

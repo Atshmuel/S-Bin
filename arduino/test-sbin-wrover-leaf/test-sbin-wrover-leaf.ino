@@ -48,7 +48,7 @@ namespace {
 constexpr char ORGANIZATION_ID[] = "699760a44e48dff9a082101e";
 
 // This sketch's version, reported in its diagnostics (bump it for every flash).
-constexpr uint8_t FIRMWARE_VERSION[3] = {2, 0, 0};
+constexpr uint8_t FIRMWARE_VERSION[3] = {2, 7, 0};
 
 #if defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
 // An S3's native USB port disappears at every deep sleep (the WROVER's USB
@@ -116,6 +116,13 @@ LeafConfig makeConfig(const LeafKeys& keys) {
     config.hooks.fillReading = fillFakeReading;
     config.hooks.runInstruction = runSimulatedInstruction;
     config.hooks.resetDevice = resetSimulatedLeaf;
+    config.relayForOthers = true;
+#ifdef SBIN_TEST_BLIND_TO_MAC
+    // Bench test of the relay: this board acts as if the device with this MAC (the
+    // gateway's) were out of range.
+    static const uint8_t blindToMac[MAC_LENGTH] = SBIN_TEST_BLIND_TO_MAC;
+    config.ignoreSender = blindToMac;
+#endif
     return config;
 }
 

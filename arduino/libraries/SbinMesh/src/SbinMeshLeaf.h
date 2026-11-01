@@ -60,6 +60,13 @@ struct LeafConfig {
     uint8_t firmwareVersion[3];
     LeafKeys keys;
     LeafHooks hooks;
+    // May serve as the relay of a leaf that hears no gateway (SbinMeshRelay.h): when its
+    // slots are hours apart and its battery is not low, it listens to the end of the
+    // gateway's window, and passes the packets of a leaf that asked until then.
+    bool relayForOthers;
+    // Bench tests only (else nullptr): the MAC of a neighbour whose frames are dropped, to
+    // act as if out of its range.
+    const uint8_t* ignoreSender;
 };
 
 // A leaf without keys asks a gateway for them (SbinMeshJoin.h): its organization

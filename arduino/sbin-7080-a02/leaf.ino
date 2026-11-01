@@ -274,5 +274,11 @@ void runAsLeaf() {
     }
     sbinmesh::LeafConfig config = makeLeafConfig(keys);
     config.hooks.afterDelivery = refreshLeafLocation;
+    config.relayForOthers = true;
+#ifdef SBIN_TEST_BLIND_TO_MAC
+    // Bench test of the relay: this leaf acts as if the device with this MAC were out of range.
+    static const uint8_t blindToMac[sbinmesh::MAC_LENGTH] = SBIN_TEST_BLIND_TO_MAC;
+    config.ignoreSender = blindToMac;
+#endif
     runLeafCycleWith(config);
 }
