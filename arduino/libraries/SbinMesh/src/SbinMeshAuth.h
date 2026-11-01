@@ -52,8 +52,11 @@ enum class AuthResult : uint8_t {
     BAD_TAG,          // not signed with the right key, or altered
     STALE_NONCE,      // genuine, but answers a mesh window that is over
     NOT_FOR_ME,       // a packet this node's role does not take
+    // Not an error: a relaying leaf takes a packet that is for someone else to pass
+    // it on, unchecked (it holds no key for that leaf); the destination checks it.
+    FORWARD,
 };
-constexpr size_t AUTH_RESULT_COUNT = 7;
+constexpr size_t AUTH_RESULT_COUNT = 8;
 const char* authResultName(AuthResult result);
 
 // A node's keys, and the signing and checking that use them. A gateway holds the
@@ -71,6 +74,12 @@ public:
     // It signs nothing; once it has keys it uses useLeafKeys().
     void useJoining(const uint8_t ownMac[MAC_LENGTH]);
     bool hasKey() const { return role_ != Role::None; }
+
+    // A leaf that relays for others (SbinMeshRelay.h): it also takes the DATA of other
+    // leaves, and the ACKs and key updates meant for them, to pass on (result FORWARD).
+    // It checks none of them: that is the destination's job, with its own key.
+    void setRelaying(bool relaying) { relaying_ = relaying; }
+    bool relaying() const { return relaying_; }
     uint8_t keyId() const { return keyId_; }
 
     // A gateway's mesh window: the nonce its beacons carry and DATA must echo.
@@ -112,6 +121,7 @@ private:
     bool nonceAccepted(uint32_t nonce) const;
 
     Role role_ = Role::None;
+    bool relaying_ = false;
     uint8_t keyId_ = 0;
     Key organizationKey_ = {};
     Key previousKey_ = {};

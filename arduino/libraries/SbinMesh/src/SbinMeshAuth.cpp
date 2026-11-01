@@ -76,6 +76,7 @@ const char* authResultName(AuthResult result) {
         case AuthResult::BAD_TAG: return "bad tag";
         case AuthResult::STALE_NONCE: return "stale nonce";
         case AuthResult::NOT_FOR_ME: return "not for me";
+        case AuthResult::FORWARD: return "forward";
     }
     return "?";
 }
@@ -215,7 +216,7 @@ AuthResult MeshAuth::check(const uint8_t* frame, size_t length) const {
                 return AuthResult::BAD_LENGTH;
             }
             if (role_ != Role::Gateway) {
-                return AuthResult::NOT_FOR_ME;
+                return role_ == Role::Leaf && relaying_ ? AuthResult::FORWARD : AuthResult::NOT_FOR_ME;
             }
             if (!organizationKeyFor(header->keyId, organizationKey)) {
                 return AuthResult::UNKNOWN_KEY_ID;
@@ -232,6 +233,9 @@ AuthResult MeshAuth::check(const uint8_t* frame, size_t length) const {
                 return AuthResult::BAD_LENGTH;
             }
             const AckPacket* ack = reinterpret_cast<const AckPacket*>(frame);
+            if (role_ == Role::Leaf && relaying_ && memcmp(ack->ackedOrigin, ownMac_, MAC_LENGTH) != 0) {
+                return AuthResult::FORWARD;
+            }
             if (role_ != Role::Leaf || memcmp(ack->ackedOrigin, ownMac_, MAC_LENGTH) != 0) {
                 return AuthResult::NOT_FOR_ME;
             }
@@ -253,9 +257,13 @@ AuthResult MeshAuth::check(const uint8_t* frame, size_t length) const {
             }
             // Sealed under the leaf's own key (SbinMeshKeyUpdate.h), which the leaf checks.
             const KeyUpdatePacket* update = reinterpret_cast<const KeyUpdatePacket*>(frame);
-            return role_ == Role::Leaf && memcmp(update->leafMac, ownMac_, MAC_LENGTH) == 0
-                ? AuthResult::OK
-                : AuthResult::NOT_FOR_ME;
+            if (role_ != Role::Leaf) {
+                return AuthResult::NOT_FOR_ME;
+            }
+            if (memcmp(update->leafMac, ownMac_, MAC_LENGTH) == 0) {
+                return AuthResult::OK;
+            }
+            return relaying_ ? AuthResult::FORWARD : AuthResult::NOT_FOR_ME;
         }
         case PACKET_JOIN_REPLY: {
             if (length != sizeof(JoinReplyPacket)) {
@@ -273,7 +281,7 @@ AuthResult MeshAuth::check(const uint8_t* frame, size_t length) const {
 
 AuthResult MeshAuth::verify(const uint8_t* frame, size_t length) {
     const AuthResult result = check(frame, length);
-    if (result != AuthResult::OK) {
+    if (result != AuthResult::OK && result != AuthResult::FORWARD) {
         counts_[static_cast<size_t>(result)]++;
     }
     return result;

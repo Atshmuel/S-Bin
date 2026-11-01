@@ -10,3 +10,5 @@ c++ -std=c++17 -Wall -Wextra -I ../src join_test.cpp hmac_host.cpp ../src/SbinMe
 /tmp/sbinmesh_join_test
 c++ -std=c++17 -Wall -Wextra -I ../src key_update_test.cpp hmac_host.cpp ../src/SbinMeshAuth.cpp ../src/SbinMeshKeyUpdate.cpp $LIBS -o /tmp/sbinmesh_key_update_test
 /tmp/sbinmesh_key_update_test
+c++ -std=c++17 -Wall -Wextra -I ../src relay_test.cpp hmac_host.cpp ../src/SbinMeshAuth.cpp ../src/SbinMeshKeyUpdate.cpp ../src/SbinMeshRelay.cpp $LIBS -o /tmp/sbinmesh_relay_test
+/tmp/sbinmesh_relay_test
