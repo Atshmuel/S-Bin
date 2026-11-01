@@ -3,6 +3,7 @@ import { generateRandomToken } from "../../utils/helpers.js";
 import { mqttClient } from "../mqttClient.js";
 import { BIN_ACK_TOPIC } from "../mqttTopics.js";
 import { binModel } from "../../db/models/models.js";
+import { isDeletedLeaf } from "../../db/service/deletedLeafService.js";
 import { getNextReportSchedule } from "../../utils/deviceSchedule.js";
 import { fromDeviceLocation } from "../../utils/geo.js";
 import { applyDeviceLog, isValidTelemetryRecord } from "./telemetry.js";
@@ -89,22 +90,29 @@ export async function handleRelay(gatewayMac, { deviceKey, leafMac, messageId, h
         return;
     }
 
+    // A leaf whose bin was deleted keeps reporting (it has no broker account, so
+    // the deletion never reached it): its bin is not made again. It is let back in
+    // by joining again.
+    const existing = await binModel.findOne({ macAddress: leafMac }, { kind: 1 }).lean();
+    if (!existing && await isDeletedLeaf(gateway.ownerId, leafMac)) {
+        console.warn(`Relay rejected: ${leafMac} was deleted from the organization.`);
+        publishRelayResult(gatewayMac, leafMac, messageId, false, "leaf_deleted");
+        return;
+    }
+
     // A leaf without a location of its own stands at its gateway. Checked in
-    // the device's [lat, lng], then stored as [lng, lat] like every location.
+    // the device's [lat, lng], then stored as [lng, lat] like every location. A
+    // gateway reporting through this one (a pole gateway without a SIM) has no
+    // fill sensor, so its record needs no level.
     const [gatewayLng, gatewayLat] = gateway.location.coordinates;
     const deviceRecord = record.location === undefined ? { ...record, location: [gatewayLat, gatewayLng] } : record;
-    if (!isValidTelemetryRecord(deviceRecord)) {
+    if (!isValidTelemetryRecord(deviceRecord, existing?.kind ?? "bin")) {
         publishRelayResult(gatewayMac, leafMac, messageId, false, "invalid_record");
         return;
     }
     const leafRecord = { ...deviceRecord, location: fromDeviceLocation(deviceRecord.location) };
 
     const leaf = await findOrCreateLeafBin(leafMac, gateway, leafRecord);
-    if (leaf.kind === "gateway") {
-        console.warn(`Relay rejected: ${leafMac} is a gateway, not a leaf bin.`);
-        publishRelayResult(gatewayMac, leafMac, messageId, false, "leaf_is_gateway");
-        return;
-    }
     if (!leaf.ownerId.equals(gateway.ownerId)) {
         console.warn(`Relay rejected: leaf ${leafMac} belongs to another organization than gateway ${gatewayMac}.`);
         publishRelayResult(gatewayMac, leafMac, messageId, false, "organization_mismatch");

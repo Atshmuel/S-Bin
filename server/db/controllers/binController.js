@@ -9,6 +9,7 @@ import {
 import { deleteDeviceData, getOrgDeviceSettingsShared, invalidateOrgStats, updateMaintenance } from '../service/sharedService.js'
 import { scopedThresholds } from '../service/thresholdService.js'
 import { deleteDeviceAccounts } from '../../mqtt/brokerAccounts.js'
+import { rememberDeletedLeaves } from '../service/deletedLeafService.js'
 import { thresholdExpression } from '../../utils/thresholds.js'
 import { reservedBinIds } from '../service/routeService.js'
 import { removeBinConfig } from '../../mqtt/mqttHandlers.js';
@@ -377,6 +378,7 @@ export async function deleteBin(req, res) {
 
         await session.commitTransaction();
         deleteDeviceAccounts([deleteBinResult.macAddress]);
+        await rememberDeletedLeaves([deleteBinResult]);
         await invalidateOrgStats([deleteBinResult.ownerId]);
         return res.status(200).json({
             message: 'Bins and logs deleted successfully',
@@ -403,7 +405,7 @@ export async function deleteBinsBatch(req, res) {
     const session = await mongoose.startSession();
     try {
         session.startTransaction();
-        const binsToDelete = await binModel.find(query, "_id macAddress ownerId", { session });
+        const binsToDelete = await binModel.find(query, "_id macAddress ownerId meshOnly", { session });
         const binsToDeleteIds = binsToDelete.map(b => b._id);
 
         if (binsToDeleteIds.length === 0) {
@@ -419,6 +421,7 @@ export async function deleteBinsBatch(req, res) {
         })
         await session.commitTransaction();
         deleteDeviceAccounts(binsToDelete.map(bin => bin.macAddress));
+        await rememberDeletedLeaves(binsToDelete);
         await invalidateOrgStats([...new Set(binsToDelete.map(bin => String(bin.ownerId)))]);
 
         return res.status(200).json({

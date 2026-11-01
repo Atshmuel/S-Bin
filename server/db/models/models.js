@@ -11,6 +11,7 @@ import { routeReservationSchema } from "../schema/routeReservationSchema.js";
 import { orgStatSchema } from "../schema/orgStatSchema.js";
 import { deviceDiagnosticSchema } from "../schema/deviceDiagnosticSchema.js";
 import { joinCodeSchema } from "../schema/joinCodeSchema.js";
+import { deletedLeafSchema } from "../schema/deletedLeafSchema.js";
 
 export const binModel = mongoose.model("Bin", binSchema);
 export const binLogModel = mongoose.model("BinLog", binLogSchema);
@@ -24,3 +25,4 @@ export const routeReservationModel = mongoose.model("RouteReservation", routeRes
 export const orgStatModel = mongoose.model("OrgStat", orgStatSchema);
 export const deviceDiagnosticModel = mongoose.model("DeviceDiagnostic", deviceDiagnosticSchema);
 export const joinCodeModel = mongoose.model("JoinCode", joinCodeSchema);
+export const deletedLeafModel = mongoose.model("DeletedLeaf", deletedLeafSchema);

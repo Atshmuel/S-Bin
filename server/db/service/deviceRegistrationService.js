@@ -5,6 +5,7 @@ import { getNextReportSchedule } from "../../utils/deviceSchedule.js";
 import { fromDeviceLocation } from "../../utils/geo.js";
 import { createDeviceAccount, setDeviceAccount } from "../../mqtt/brokerAccounts.js";
 import { recordRoleChange } from "./roleChangeService.js";
+import { forgetDeletedLeaf } from "./deletedLeafService.js";
 
 const MAC_ADDRESS_PATTERN = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
@@ -73,5 +74,6 @@ export async function registerDevice({ mac, orgId, location, battery, kind = "bi
     }
     // Its account on the private broker, before the device first connects.
     await createDeviceAccount(mac, deviceKey);
+    await forgetDeletedLeaf(orgId, mac);
     return registered;
 }

@@ -5,6 +5,7 @@ import {
 } from "../../utils/joinCodes.js";
 import { deriveBeaconKey, deriveLeafKey, isMacAddress } from "../../utils/meshKeys.js";
 import { ensureMeshKey } from "./meshKeyService.js";
+import { forgetDeletedLeaf } from "./deletedLeafService.js";
 
 // A new join code for the organization's next leaf, shown once to the person
 // adding it. Only the newest few unused ones are kept.
@@ -53,6 +54,8 @@ export async function redeemJoin({ gateway, leafMac, orgId, codeId, nonce, proof
         { $set: { boundMac: mac } },
     );
     if (bound.matchedCount === 0) return { accepted: false, reason: "code_used" };
+    // A leaf whose bin was deleted joins again by choice: its readings are welcome.
+    await forgetDeletedLeaf(orgId, mac);
 
     return {
         accepted: true,
