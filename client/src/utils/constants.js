@@ -150,3 +150,13 @@ export const DASHBOARD_REFRESH_MS = 2 * MINUTE_MS
 export const LIST_REFRESH_MS = MINUTE_MS
 // A pending command is refreshed until its device picks it up.
 export const PENDING_INSTRUCTIONS_REFRESH_MS = 30 * 1000
+
+// The landing page and the app are served from two hosts of one build: the
+// landing page from the host named here, the app from every other one (the
+// landing page's "Log in" goes to APP_URL). Locally neither is set, the app is
+// at localhost, and landing.localhost shows the landing page.
+export const LANDING_HOST = import.meta.env.VITE_LANDING_HOST || "landing.localhost"
+export const APP_URL = import.meta.env.VITE_APP_URL || "http://localhost:5173"
+
+// Where "Get a demo" requests on the landing page are mailed. Replace with the real address.
+export const DEMO_EMAIL = "demo@sbin.example"

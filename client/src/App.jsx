@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import {
   QueryClient,
   QueryClientProvider,
@@ -36,12 +37,29 @@ import RoutesList from './pages/routes/RoutesList';
 import RouteDetails from './pages/routes/RouteDetails';
 import RouteDrive from './pages/routes/RouteDrive';
 import HomeRedirect from './components/HomeRedirect';
+import { LANDING_HOST } from './utils/constants';
+
+// The landing page is its own host (see LANDING_HOST); its code is not part of the app's.
+const Landing = lazy(() => import('./pages/landing/Landing'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 0 } },
 });
 
+function LandingSite() {
+  return <AppSideProvider>
+    <BrowserRouter>
+      <Suspense fallback={null}>
+        <Routes>
+          <Route path="*" element={<Landing />} />
+        </Routes>
+      </Suspense>
+    </BrowserRouter>
+  </AppSideProvider>
+}
+
 function App() {
+  if (window.location.hostname === LANDING_HOST) return <LandingSite />
 
   return <QueryClientProvider client={queryClient}>
     <AppSideProvider>

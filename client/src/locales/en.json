@@ -1156,6 +1156,149 @@
         "confirmationDescription": "Enter a new name for the organization.",
         "label": "New Organization Name"
       }
+    },
+    "landing": {
+      "nav": {
+        "login": "Log in",
+        "start": "Get started",
+        "language": "עברית",
+        "demo": "Get a demo"
+      },
+      "hero": {
+        "eyebrow": "IoT smart waste",
+        "title": "The bin that tells you when it's full.",
+        "text": "sBin turns a wheelie bin into a connected one. It weighs what goes in, measures how full it is and tells your team the moment it needs emptying, so trucks drive to full bins, not empty ones.",
+        "start": "Get started",
+        "how": "See how it works",
+        "scroll": "Scroll",
+        "demo": "Get a demo"
+      },
+      "weigh": {
+        "title": "It weighs every bag.",
+        "text": "The whole bin is a scale. Each bag that goes in is weighed as it lands, so you know what is really being thrown away, not just how often the bin gets emptied."
+      },
+      "measure": {
+        "title": "It sees how full it is.",
+        "text": "A sensor looks down into the bin and measures the real level, not a guess from a schedule. You see 73% full, not \"probably full\"."
+      },
+      "report": {
+        "title": "It reports on its own.",
+        "text": "Weight, fill level and position reach your dashboard by themselves, wherever the bin stands. Nobody has to walk the route just to look."
+      },
+      "route": {
+        "title": "The best route, not the default one.",
+        "text": "Instead of the same round every day, sBin builds a route through just the bins that need emptying, so trucks drive less and never stop at an empty bin.",
+        "legendDefault": "Default round: every bin, every day",
+        "legendBest": "sBin route: only the bins that need it"
+      },
+      "lineup": {
+        "title": "For new bins and the ones you already own.",
+        "text": "Choose how sBin comes to your street.",
+        "hint": "Drag a model to turn it and see it from every side."
+      },
+      "labels": {
+        "weight": "Weight",
+        "fill": "Fill level",
+        "bin": "sBin bin",
+        "binText": "Connectivity built into the bin from the factory.",
+        "device": "Plug & play",
+        "deviceText": "Add it to the bin you already own. Shown 5 times larger.",
+        "live": "Online, just now"
+      },
+      "card": {
+        "name": "Bin A-142",
+        "street": "Elm Street",
+        "status": "Almost full",
+        "fill": "Fill",
+        "weight": "Weight",
+        "now": "Now",
+        "updated": "Updated"
+      },
+      "cta": {
+        "title": "Ready to see it on your bins?",
+        "text": "Get a demo and see every bin, its weight and its fill level on one map.",
+        "demo": "Get a demo",
+        "login": "Log in"
+      },
+      "footer": {
+        "support": "Support",
+        "rights": "sBin. IoT smart waste."
+      },
+      "benefits": {
+        "title": "Everything you need to run collection by data.",
+        "text": "One bin, one dashboard, no guessing.",
+        "weigh": {
+          "title": "Real weight",
+          "text": "Every bag is weighed as it goes in, so you see how much each bin really collects."
+        },
+        "level": {
+          "title": "Real fill level",
+          "text": "A sensor measures how full the bin is, instead of trusting a collection schedule."
+        },
+        "place": {
+          "title": "Always located",
+          "text": "Each bin reports its position, so it is always on the map where it actually stands."
+        },
+        "alert": {
+          "title": "Alerts when it matters",
+          "text": "Get notified when a bin is nearly full or something needs your attention."
+        },
+        "route": {
+          "title": "Routes that make sense",
+          "text": "A route through just the bins that need emptying, ready for the driver in the same app."
+        },
+        "team": {
+          "title": "One dashboard for the team",
+          "text": "Owners, admins and drivers each see what they need, on one map."
+        }
+      },
+      "roi": {
+        "title": "See what unnecessary pickups cost you.",
+        "text": "Enter your own numbers. Every pickup of a bin that was not full yet is a trip you did not need to make.",
+        "bins": "Bins",
+        "pickups": "Pickups per bin, per month",
+        "cost": "Cost of one pickup",
+        "share": "Pickups that were not needed",
+        "result": "You could save about",
+        "perYear": "per year",
+        "avoided": "pickups avoided each month",
+        "perMonth": "saved each month",
+        "note": "An estimate from the numbers you entered, including your own guess of how many pickups are unnecessary. It is not a promise. We will go through your real numbers in the demo."
+      },
+      "faq": {
+        "title": "Questions we hear",
+        "existing": {
+          "q": "Can I use sBin on the bins I already have?",
+          "a": "Yes. The plug & play device is added to a bin you already own. You can also choose the sBin bin, which has it built in."
+        },
+        "measures": {
+          "q": "What does it measure?",
+          "a": "The weight of what goes in, how full the bin is, and where the bin is."
+        },
+        "connects": {
+          "q": "How does the data reach me?",
+          "a": "Each bin sends its readings over the cellular network to your dashboard. You do not walk the route to look."
+        },
+        "team": {
+          "q": "Who uses the dashboard?",
+          "a": "Owners, admins and drivers. Each role sees what it needs: the full picture, the bins and users, or the route to drive."
+        },
+        "start": {
+          "q": "How do I start?",
+          "a": "Ask for a demo. We will show you the system on your own kind of bins and go through your numbers with you."
+        }
+      },
+      "demo": {
+        "title": "Get a demo",
+        "text": "Tell us a little about you and we will be in touch.",
+        "name": "Name",
+        "email": "Email",
+        "company": "Company",
+        "bins": "How many bins?",
+        "message": "Anything we should know?",
+        "send": "Send request",
+        "subject": "sBin demo request"
+      }
     }
   },
   "confirmations": {
