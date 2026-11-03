@@ -25,6 +25,7 @@ import NewEntitySheet from "./newEntityComponents/NewEntitySheet"
 import { useMe } from "@/hooks/users/auth/useMe"
 import { useAppSide } from "@/hooks/useAppSide"
 import { useTranslation } from "react-i18next"
+import { useLocation } from "react-router-dom"
 import RemoveBin from "./bins/RemoveBin"
 
 
@@ -33,9 +34,13 @@ export function AppSidebar({
   ...props
 }) {
   const { t } = useTranslation()
-  const { state } = useSidebar()
+  const { state, setOpenMobile } = useSidebar()
+  const { pathname } = useLocation()
   const { me, isAdmin, isOwner, isDriver } = useMe()
   const { opSide, isRight } = useAppSide()
+
+  // On a phone the sidebar is a sheet over the page; going anywhere closes it.
+  React.useEffect(() => { setOpenMobile(false) }, [pathname, setOpenMobile])
 
   const isExpanded = state === 'expanded'
 
