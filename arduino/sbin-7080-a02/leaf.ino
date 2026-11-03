@@ -149,6 +149,22 @@ void runLeafInstruction(const sbinmesh::AckPacket& ack, sbinmesh::DataPacket& da
 
 // Once a month, as on a gateway: the modem only for GNSS, then off again. The
 // fix goes out with the next reading.
+// A leaf with no calibrated empty bin (a new one, or a failing sensor) calibrates, 20 s per
+// attempt. After the delivery, never before the radio: the leaf wakes only seconds ahead of
+// its slot, and on 2026-11-03 two attempts (40 s) made the S3 leaf start listening after the
+// gateway's window had closed.
+void calibrateLeafIfNeeded() {
+    const bool depthWasMissing = binDepthMm <= 0;
+    for (uint8_t attempt = 1; binDepthMm <= 0 && attempt <= CALIBRATION_ATTEMPTS; attempt++) {
+        if (!calibrateBinDepth()) {
+            Serial.printf("⚠️ Calibration attempt %u of %u failed.\n", attempt, CALIBRATION_ATTEMPTS);
+        }
+    }
+    if (depthWasMissing && binDepthMm > 0) {
+        zeroScale();
+    }
+}
+
 void refreshLeafLocation() {
     acceptSetupLocation();
     if (!shouldRefreshGpsLocation()) {
@@ -221,6 +237,12 @@ void prepareLeafSleep() {
 }
 
 // The leaf cycle's settings with these keys: this board's measurements and commands.
+// What a leaf does after its readings went out, before it sleeps.
+void finishLeafWake() {
+    calibrateLeafIfNeeded();
+    refreshLeafLocation();
+}
+
 sbinmesh::LeafConfig makeLeafConfig(const sbinmesh::LeafKeys& keys) {
     sbinmesh::LeafConfig config = {};
     config.organizationId = ownerId.c_str();
@@ -244,16 +266,6 @@ void runAsLeaf() {
     Serial.println("🌿 Running as a mesh leaf.");
     powerOffModem();
 
-    const bool depthWasMissing = binDepthMm <= 0;
-    for (uint8_t attempt = 1; binDepthMm <= 0 && attempt <= CALIBRATION_ATTEMPTS; attempt++) {
-        if (!calibrateBinDepth()) {
-            Serial.printf("⚠️ Calibration attempt %u of %u failed.\n", attempt, CALIBRATION_ATTEMPTS);
-        }
-    }
-    if (depthWasMissing && binDepthMm > 0) {
-        zeroScale();
-    }
-
     // A leaf that was a gateway keeps the organization key and derives its own
     // keys from it; a bench build has mesh_keys.h. Keys a JOIN or a rotation left
     // in flash win when they are a later generation; with none at all, a JOIN now.
@@ -273,7 +285,7 @@ void runAsLeaf() {
         joinTheMesh(keys);
     }
     sbinmesh::LeafConfig config = makeLeafConfig(keys);
-    config.hooks.afterDelivery = refreshLeafLocation;
+    config.hooks.afterDelivery = finishLeafWake;
     config.relayForOthers = true;
 #ifdef SBIN_TEST_BLIND_TO_MAC
     // Bench test of the relay: this leaf acts as if the device with this MAC were out of range.

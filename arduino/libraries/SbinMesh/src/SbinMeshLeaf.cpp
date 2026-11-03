@@ -81,8 +81,18 @@ constexpr uint32_t LATE_COMMAND_MIN_SLOT_GAP_SECONDS = 3UL * 60UL * 60UL;
 // heard directly is the better path), and only from a relay not much weaker than the best.
 constexpr uint32_t RELAY_REQUEST_SCHEDULED_INTERVAL_MS = 2000;
 constexpr uint32_t RELAY_REQUEST_COLD_INTERVAL_MS = 5000;
+// The gateway's window opens a few seconds after the slot (the bench: 5-7 s); a leaf asks
+// for a relay only after that.
+constexpr int64_t RELAY_REQUEST_AFTER_SLOT_MS = 8000;
 constexpr uint32_t RELAYED_BEACON_HOLD_MS = 2000;
 constexpr int8_t RELAY_RSSI_TOLERANCE_DB = 6;
+// How far apart a leaf's slots must be for it to relay. Bench tests of the relay build
+// with -DSBIN_TEST_RELAY_MIN_GAP_SECONDS=0, to relay on a 15-minute schedule.
+#ifdef SBIN_TEST_RELAY_MIN_GAP_SECONDS
+constexpr uint32_t RELAY_MIN_SLOT_GAP_SECONDS = SBIN_TEST_RELAY_MIN_GAP_SECONDS;
+#else
+constexpr uint32_t RELAY_MIN_SLOT_GAP_SECONDS = LATE_COMMAND_MIN_SLOT_GAP_SECONDS;
+#endif
 // A leaf relays for others only with this much battery (0: not known), for the slots of
 // one or more hours apart that LATE_COMMAND_MIN_SLOT_GAP_SECONDS asks of every leaf that listens on.
 constexpr uint8_t RELAY_MIN_BATTERY_PERCENT = 30;
@@ -385,7 +395,7 @@ bool waitForBeacon(uint32_t listenMs, bool atScheduledSlot) {
     const uint32_t askEveryMs = atScheduledSlot ? RELAY_REQUEST_SCHEDULED_INTERVAL_MS : RELAY_REQUEST_COLD_INTERVAL_MS;
     while (millis() - startedAt < listenMs) {
         const bool slotStarted = !atScheduledSlot ||
-            (clockValid() && epochMsNow() >= static_cast<int64_t>(nextWakeEpoch) * 1000);
+            (clockValid() && epochMsNow() >= static_cast<int64_t>(nextWakeEpoch) * 1000 + RELAY_REQUEST_AFTER_SLOT_MS);
         if (slotStarted && (!asked || millis() - askedAtMs >= askEveryMs)) {
             RelayRequestPacket request = {};
             radio.initHeader(request.header, PACKET_RELAY_REQUEST);
@@ -541,7 +551,7 @@ void waitForKeyUpdate() {
 // A leaf that heard its gateway directly, hours between its slots and battery to spare
 // may relay for a leaf that hears no gateway.
 bool canRelayForOthers() {
-    return config->relayForOthers && beaconWasDirect && slotGapSeconds >= LATE_COMMAND_MIN_SLOT_GAP_SECONDS &&
+    return config->relayForOthers && beaconWasDirect && slotGapSeconds >= RELAY_MIN_SLOT_GAP_SECONDS &&
            (ownBatteryPercent == 0 || ownBatteryPercent >= RELAY_MIN_BATTERY_PERCENT);
 }
 
@@ -570,10 +580,11 @@ void relayFrame(const ReceivedFrame& frame) {
         return;
     }
     const bool up = action.kind == ForwardKind::UP;
+    // The leaf this is for: the one that sent a reading, the one an answer is addressed to.
     char macText[18];
-    formatMac(frame.header().origin, macText);
+    formatMac(up ? frame.header().origin : action.destination, macText);
     if (!radio.sendTo(action.destination, out, action.length)) {
-        Serial.printf("⚠️ Relay: %s from %s was not taken by its next hop.\n", up ? "a reading" : "an answer", macText);
+        Serial.printf("⚠️ Relay: %s %s was not taken by its next hop.\n", up ? "reading from" : "answer for", macText);
     } else {
         Serial.printf("🔁 Relay: %s %s passed %s.\n", up ? "reading from" : "answer for", macText, up ? "up" : "down");
     }
