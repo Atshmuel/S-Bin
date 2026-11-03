@@ -48,7 +48,7 @@ namespace {
 constexpr char ORGANIZATION_ID[] = "699760a44e48dff9a082101e";
 
 // This sketch's version, reported in its diagnostics (bump it for every flash).
-constexpr uint8_t FIRMWARE_VERSION[3] = {2, 7, 3};
+constexpr uint8_t FIRMWARE_VERSION[3] = {2, 7, 4};
 
 #if defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
 // An S3's native USB port disappears at every deep sleep (the WROVER's USB

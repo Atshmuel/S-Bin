@@ -119,8 +119,10 @@ void addDiagnostics(JsonObject diagnostics, const DeviceReading& reading) {
     diagnostics["wakeCause"] = wakeCauseText();
     diagnostics["chipTempC"] = roundf(temperatureRead() * 10) / 10;
     if (pmuAvailable) {
-        diagnostics["pmuOffSource"] = pmuOffSource;
-        diagnostics["pmuOnSource"] = pmuOnSource;
+        if (pmuPowerWasLost) {
+            diagnostics["pmuOffSource"] = pmuOffSource;
+            diagnostics["pmuOnSource"] = pmuOnSource;
+        }
         diagnostics["pmuTempC"] = roundf(PMU.getTemperature() * 10) / 10;
         diagnostics["batteryMv"] = reading.batteryMillivolts;
         diagnostics["systemMv"] = PMU.getSystemVoltage();

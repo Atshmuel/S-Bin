@@ -15,8 +15,12 @@ constexpr uint64_t SLOT_LEAD_PPM = 8000;
 // ...plus the modem boot and network time sync after the wake (~10 s).
 constexpr uint64_t SLOT_LEAD_SYNC_SECONDS = 30;
 constexpr uint64_t MAX_SLOT_LEAD_SECONDS = 600;
-// Shorter sleeps (development intervals) drift by only a few seconds.
+// Shorter sleeps (development intervals) drift by only a few seconds, so the lead for
+// drift starts here; the sync time below is not drift and is covered for any sleep.
 constexpr uint64_t MIN_LEAD_SLEEP_SECONDS = 600;
+// The sync after a wake took 63 s on a weak NB-IoT cell (2026-11-04), twice the 30 s above:
+// the lead follows the last cycle's measured modem and network time, with this margin.
+constexpr uint32_t MAX_SYNC_LEAD_SECONDS = 240;
 // The light sleep ends this long before the slot to re-read network time.
 constexpr int64_t SLOT_RESYNC_SECONDS = 5;
 // The re-read comes at least this long after the first read, even when that
@@ -44,11 +48,11 @@ uint32_t firstReadMillis = 0;
 // How early a slot sleep ends on purpose: enough for the drift to change by
 // SLOT_LEAD_PPM over the sleep, plus the time to sync the clock after waking.
 uint32_t slotLeadSeconds(uint64_t sleepSeconds) {
-    if (sleepSeconds < MIN_LEAD_SLEEP_SECONDS) {
-        return 0;
-    }
-    const uint64_t lead = sleepSeconds * SLOT_LEAD_PPM / 1000000ULL + SLOT_LEAD_SYNC_SECONDS;
-    return static_cast<uint32_t>(min(lead, MAX_SLOT_LEAD_SECONDS));
+    const uint64_t syncSeconds = max<uint64_t>(SLOT_LEAD_SYNC_SECONDS, lastSyncSeconds * 3ULL / 2 + 10);
+    const uint64_t driftSeconds = sleepSeconds < MIN_LEAD_SLEEP_SECONDS ? 0 : sleepSeconds * SLOT_LEAD_PPM / 1000000ULL;
+    const uint64_t lead = min(driftSeconds + syncSeconds, MAX_SLOT_LEAD_SECONDS);
+    // A sleep too short to be half lead (a development interval) wakes at its slot, as before.
+    return lead * 2 > sleepSeconds ? 0 : static_cast<uint32_t>(lead);
 }
 
 // Reads the modem's network time as a UTC epoch (1 s resolution).

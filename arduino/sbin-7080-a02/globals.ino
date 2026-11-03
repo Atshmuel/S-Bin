@@ -67,6 +67,7 @@ RTC_DATA_ATTR uint64_t sleepStartedEpoch = 0;
 // How much before its slot the last deep sleep was set to end, on purpose (see
 // waitForSlotStart()); the wake timing diagnostic is measured against it.
 RTC_DATA_ATTR uint32_t sleepLeadSeconds = 0;
+RTC_DATA_ATTR uint32_t lastSyncSeconds = 0;
 RTC_DATA_ATTR uint32_t scheduleAckCounter = 0;
 uint32_t instructionCheckCounter = 0;
 bool instructionResponseValid = false;
@@ -81,6 +82,7 @@ bool gpsFixUpdatedThisCycle = false;
 StageTimes stageTimes = {};
 uint8_t pmuOffSource = 0;
 uint8_t pmuOnSource = 0;
+bool pmuPowerWasLost = false;
 bool lastScaleSampled = false;
 int32_t lastScaleRawCounts = 0;
 int32_t lastScaleSpreadCounts = 0;

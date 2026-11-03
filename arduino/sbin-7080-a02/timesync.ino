@@ -20,6 +20,11 @@ constexpr int64_t MAX_REPORTED_CLOCK_ERROR_SECONDS = 86400;
 constexpr int64_t MAX_LOGGED_WAKE_OFFSET_SECONDS = 3600;
 }
 
+// Remembers how long this wake's modem start and network sync took (the stage times).
+void recordSyncTime() {
+    lastSyncSeconds = min<uint32_t>((stageTimes.modemMs + stageTimes.networkMs + 999) / 1000, MAX_SYNC_LEAD_SECONDS);
+}
+
 uint64_t applyDriftCorrection(uint64_t sleepSeconds) {
     return sbinmesh::applyDriftCorrection(sleepSeconds, driftPpm);
 }

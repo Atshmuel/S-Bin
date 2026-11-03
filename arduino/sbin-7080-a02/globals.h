@@ -54,9 +54,9 @@ constexpr uint32_t USB_LOG_RECONNECT_WAIT_MS = 3000;
 
 // This firmware's version, reported in every diagnostics block (semver; bump
 // it by hand for every flash).
-constexpr char FIRMWARE_VERSION[] = "2.7.3";
+constexpr char FIRMWARE_VERSION[] = "2.7.4";
 // The same as numbers, for a leaf's diagnostics (keep the two in step).
-constexpr uint8_t FIRMWARE_VERSION_NUMBERS[3] = {2, 7, 3};
+constexpr uint8_t FIRMWARE_VERSION_NUMBERS[3] = {2, 7, 4};
 
 // The S-Bin servers (2i): registration over HTTPS, reports over MQTT with TLS
 // on the private broker, both checked against SBIN_CA_FILE in the modem.
@@ -163,6 +163,9 @@ extern bool driftMeasured;
 extern bool clockDriftLoaded;
 extern uint64_t sleepStartedEpoch;
 extern uint32_t sleepLeadSeconds;
+// How long this wake's modem start and network sync took, in seconds: the next lead covers it.
+extern uint32_t lastSyncSeconds;
+void recordSyncTime();
 extern uint32_t scheduleAckCounter;
 extern uint32_t instructionCheckCounter;
 extern bool instructionResponseValid;
@@ -200,6 +203,8 @@ extern StageTimes stageTimes;
 // The AXP2101's power-off and power-on source registers, read at boot.
 extern uint8_t pmuOffSource;
 extern uint8_t pmuOnSource;
+// Whether this boot followed a loss of power (a power-on or a brownout), when the two above mean something.
+extern bool pmuPowerWasLost;
 // The last HX711 read's median raw counts and spread (see readScaleRaw()).
 extern bool lastScaleSampled;
 extern int32_t lastScaleRawCounts;
@@ -215,7 +220,6 @@ void addLeafDiagnostics(JsonObject diagnostics, const sbinmesh::LeafDiagnostics&
 
 bool initializePowerManagement();
 void readPmuPowerSources();
-void clearPmuOffSource();
 String pmuRailsText();
 extern String pmuPowerSources;
 DeviceReading takeReading(bool gpsTested, bool gpsOk, bool sensorTrusted);
