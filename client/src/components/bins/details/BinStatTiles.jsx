@@ -93,6 +93,12 @@ function BinStatTiles({ bin }) {
             >
                 {/* self-start: the LTR time sits at the start of the tile in both directions. */}
                 {updatedAt && <span dir="ltr" className="self-start">{format(new Date(updatedAt), 'yyyy-MM-dd HH:mm:ss')}</span>}
+                {bin.nextReportAt && (
+                    <span>
+                        {t('pages.binDetails.tiles.nextReport')}{" "}
+                        <span dir="ltr">{format(new Date(bin.nextReportAt), 'yyyy-MM-dd HH:mm')}</span>
+                    </span>
+                )}
             </StatTile>
 
             <StatTile

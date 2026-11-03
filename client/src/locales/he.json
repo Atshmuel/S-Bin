@@ -992,6 +992,7 @@
         "levelPart": "רמת מילוי: {{percent}}%",
         "weight": "משקל: {{kg}} ק״ג",
         "lastReport": "דיווח אחרון",
+        "nextReport": "דיווח הבא:",
         "never": "עוד אין דיווחים",
         "connection": "חיבור",
         "cellular": "סלולרי",

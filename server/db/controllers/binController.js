@@ -3,6 +3,7 @@ import { binModel, organizationModel } from '../models/models.js'
 import { appendFilter, BINS_ONLY_FILTER, healthRank, listSortStages, scopeToOrganization } from '../../utils/helpers.js'
 import { FULLNESS_EXPRESSION } from '../../utils/analytics.js'
 import { isLngLat } from '../../utils/geo.js'
+import { getNextReportSchedule } from '../../utils/deviceSchedule.js'
 import {
     DEFAULT_PAGE_SIZE, MAP_CELL_PX, MAP_VIEW_LIMIT, ROLES,
 } from '../../utils/constants.js'
@@ -65,6 +66,10 @@ export async function getBin(req, res) {
             // When the device next reports, which is when it gets queued instructions.
             const { reportIntervalMinutes, reportStartHour } = await getOrgDeviceSettingsShared(device.ownerId);
             device.reportSchedule = { reportIntervalMinutes, reportStartHour };
+            // The next slot of that schedule, for the "next report" shown beside the last one.
+            if (isLngLat(device.location?.coordinates)) {
+                device.nextReportAt = getNextReportSchedule(device.location.coordinates, reportIntervalMinutes, reportStartHour).nextWakeEpoch * 1000;
+            }
             // A leaf links to the gateway its last report came through.
             const gatewayId = device.status?.connection?.gatewayId;
             // And to the leaf that relayed it, when it came by more than one hop.

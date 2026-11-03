@@ -972,6 +972,7 @@
         "levelPart": "Fill level: {{percent}}%",
         "weight": "Weight: {{kg}} kg",
         "lastReport": "Last report",
+        "nextReport": "Next report:",
         "never": "No reports yet",
         "connection": "Connection",
         "cellular": "Cellular",
