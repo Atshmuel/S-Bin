@@ -74,7 +74,13 @@ constexpr uint32_t LISTEN_SLACK_SECONDS = 5;
 // window (it asks the server once its own report is done). Waiting for it keeps
 // the radio on for the rest of the window, so a leaf does it only when its
 // slots are this far apart: a command otherwise waits one cycle, which is short.
+// Bench tests build with -DSBIN_TEST_RELAY_MIN_GAP_SECONDS=0 to wait for a late command, and
+// to relay, on a 15-minute schedule.
+#ifdef SBIN_TEST_RELAY_MIN_GAP_SECONDS
+constexpr uint32_t LATE_COMMAND_MIN_SLOT_GAP_SECONDS = SBIN_TEST_RELAY_MIN_GAP_SECONDS;
+#else
 constexpr uint32_t LATE_COMMAND_MIN_SLOT_GAP_SECONDS = 3UL * 60UL * 60UL;
+#endif
 // A leaf that hears no gateway asks the leaves around to relay (SbinMeshRelay.h): every
 // 2 s from the slot on, every 5 s when it has no slot to wait for. A beacon relayed by a
 // leaf is used only when no gateway's came in this long after the first one (a gateway
@@ -86,13 +92,8 @@ constexpr uint32_t RELAY_REQUEST_COLD_INTERVAL_MS = 5000;
 constexpr int64_t RELAY_REQUEST_AFTER_SLOT_MS = 8000;
 constexpr uint32_t RELAYED_BEACON_HOLD_MS = 2000;
 constexpr int8_t RELAY_RSSI_TOLERANCE_DB = 6;
-// How far apart a leaf's slots must be for it to relay. Bench tests of the relay build
-// with -DSBIN_TEST_RELAY_MIN_GAP_SECONDS=0, to relay on a 15-minute schedule.
-#ifdef SBIN_TEST_RELAY_MIN_GAP_SECONDS
-constexpr uint32_t RELAY_MIN_SLOT_GAP_SECONDS = SBIN_TEST_RELAY_MIN_GAP_SECONDS;
-#else
+// How far apart a leaf's slots must be for it to relay: as for a late command.
 constexpr uint32_t RELAY_MIN_SLOT_GAP_SECONDS = LATE_COMMAND_MIN_SLOT_GAP_SECONDS;
-#endif
 // A leaf relays for others only with this much battery (0: not known), for the slots of
 // one or more hours apart that LATE_COMMAND_MIN_SLOT_GAP_SECONDS asks of every leaf that listens on.
 constexpr uint8_t RELAY_MIN_BATTERY_PERCENT = 30;
@@ -100,6 +101,11 @@ constexpr uint8_t RELAY_MIN_BATTERY_PERCENT = 30;
 // way down), or an ACK down, even when the window was about to close.
 constexpr uint32_t RELAY_UP_LINGER_MS = 4000;
 constexpr uint32_t RELAY_DOWN_LINGER_MS = 2000;
+// A JOIN passed up is answered by the server within the gateway's JOIN window (25 s, the
+// gateway's JOIN_WINDOW_EXTENSION_MS), so the relay stays for it; and none of this keeps
+// a relay awake more than this past the end of its window, whatever it hears.
+constexpr uint32_t RELAY_JOIN_LINGER_MS = 25000;
+constexpr uint32_t RELAY_MAX_EXTENSION_MS = 60000;
 // A JOIN: how long the answer is awaited (the gateway keeps its window open for
 // it, and answers the JOINs of many leaves one at a time), the delay before
 // sending, random so leaves started together do not transmit at the same moment
@@ -185,6 +191,7 @@ uint8_t ownBatteryPercent = 0;
 bool relayActive = false;
 RelayMemory relayMemory;
 RelayBudget relayBudget;
+uint32_t relayHardEndMs = 0;
 
 bool clockValid() {
     return isValidEpoch(time(nullptr));
@@ -580,16 +587,21 @@ void relayFrame(const ReceivedFrame& frame) {
         return;
     }
     const bool up = action.kind == ForwardKind::UP;
+    const bool join = frame.header().type == PACKET_JOIN;
     // The leaf this is for: the one that sent a reading, the one an answer is addressed to.
     char macText[18];
     formatMac(up ? frame.header().origin : action.destination, macText);
     if (!radio.sendTo(action.destination, out, action.length)) {
-        Serial.printf("⚠️ Relay: %s %s was not taken by its next hop.\n", up ? "reading from" : "answer for", macText);
+        Serial.printf("⚠️ Relay: %s %s was not taken by its next hop.\n", up ? (join ? "JOIN of" : "reading from") : "answer for", macText);
     } else {
-        Serial.printf("🔁 Relay: %s %s passed %s.\n", up ? "reading from" : "answer for", macText, up ? "up" : "down");
+        Serial.printf("🔁 Relay: %s %s passed %s.\n", up ? (join ? "JOIN of" : "reading from") : "answer for", macText, up ? "up" : "down");
     }
-    // The answer is on its way back, or the leaf is to be heard again: stay for it.
-    const uint32_t stayUntil = millis() + (up ? RELAY_UP_LINGER_MS : RELAY_DOWN_LINGER_MS);
+    // The answer is on its way back, or the leaf is to be heard again: stay for it, but only
+    // so far past the window (what a relay passes is not checked, so it cannot be held awake).
+    uint32_t stayUntil = millis() + (join ? RELAY_JOIN_LINGER_MS : up ? RELAY_UP_LINGER_MS : RELAY_DOWN_LINGER_MS);
+    if (static_cast<int32_t>(stayUntil - relayHardEndMs) > 0) {
+        stayUntil = relayHardEndMs;
+    }
     if (static_cast<int32_t>(stayUntil - windowEndAtMs) > 0) {
         windowEndAtMs = stayUntil;
     }
@@ -611,6 +623,7 @@ void listenToWindowEnd() {
     relayActive = false;
     relayMemory.reset();
     relayBudget.reset();
+    relayHardEndMs = windowEndAtMs + RELAY_MAX_EXTENSION_MS;
     ReceivedFrame frame;
     while (static_cast<int32_t>(windowEndAtMs - millis()) > 0 && (wantsLateCommand || mayRelay)) {
         if (!radio.receive(frame, 100)) {
@@ -823,17 +836,49 @@ JoinOutcome joinMesh(const JoinConfig& joinConfig, LeafKeys& keys, uint32_t list
     JoinOutcome outcome = JoinOutcome::NO_ANSWER;
     uint32_t lastWindowNonce = 0;
     bool askedInAWindow = false;
+    // A leaf out of every gateway's range joins through a relaying leaf: it asks for one while it
+    // hears no gateway, and uses a relayed beacon as a waiting leaf does (waitForBeacon).
+    bool heardDirect = false;
+    uint32_t heardDirectAtMs = 0;
+    bool askedForRelay = false;
+    uint32_t askedForRelayAtMs = 0;
+    bool sawRelayed = false;
+    uint32_t sawRelayedAtMs = 0;
+    int8_t bestRelayedRssi = -127;
     const uint32_t startedAt = millis();
     ReceivedFrame frame;
     while (outcome == JoinOutcome::NO_ANSWER && millis() - startedAt < listenMs) {
+        const bool gatewayNear = heardDirect && millis() - heardDirectAtMs < 2 * RELAY_REQUEST_COLD_INTERVAL_MS;
+        if (!gatewayNear && (!askedForRelay || millis() - askedForRelayAtMs >= RELAY_REQUEST_COLD_INTERVAL_MS)) {
+            RelayRequestPacket request = {};
+            radio.initHeader(request.header, PACKET_RELAY_REQUEST);
+            radio.broadcast(&request, sizeof(request));
+            askedForRelay = true;
+            askedForRelayAtMs = millis();
+        }
         if (!radio.receive(frame, 100)) {
             continue;
         }
         const BeaconPacket* beacon = frame.as<BeaconPacket>(PACKET_BEACON);
         // One JOIN per window of a gateway (its nonce names the window).
-        if (beacon == nullptr || beacon->hopsToGateway != 0 ||
+        if (beacon == nullptr || beacon->hopsToGateway > 1 ||
             (askedInAWindow && beacon->cycleNonce == lastWindowNonce)) {
             continue;
+        }
+        if (beacon->hopsToGateway == 0) {
+            heardDirect = true;
+            heardDirectAtMs = millis();
+        } else {
+            if (!sawRelayed) {
+                sawRelayed = true;
+                sawRelayedAtMs = millis();
+            }
+            bestRelayedRssi = max(bestRelayedRssi, frame.rssi);
+            if (millis() - sawRelayedAtMs < RELAYED_BEACON_HOLD_MS ||
+                frame.rssi < bestRelayedRssi - RELAY_RSSI_TOLERANCE_DB) {
+                continue;
+            }
+            Serial.println("🔑 No gateway in range: joining through a relaying leaf.");
         }
         const uint32_t windowNonce = beacon->cycleNonce;
 

@@ -72,6 +72,28 @@ ForwardAction prepareForward(const uint8_t* frame, size_t length, const uint8_t 
             memcpy(action.destination, ack->ackedOrigin, MAC_LENGTH);
             break;
         }
+        case PACKET_JOIN: {
+            // A leaf without keys asking its gateway for them: unsigned, the server checks it.
+            if (length != sizeof(JoinPacket) || isZero(parentMac)) {
+                return nothing();
+            }
+            action.kind = ForwardKind::UP;
+            memcpy(action.destination, parentMac, MAC_LENGTH);
+            break;
+        }
+        case PACKET_JOIN_REPLY: {
+            // The keys for that leaf, sealed under its join code (a relay cannot open them).
+            if (length != sizeof(JoinReplyPacket)) {
+                return nothing();
+            }
+            const JoinReplyPacket* reply = reinterpret_cast<const JoinReplyPacket*>(frame);
+            if (memcmp(reply->leafMac, ownMac, MAC_LENGTH) == 0) {
+                return nothing();
+            }
+            action.kind = ForwardKind::DOWN;
+            memcpy(action.destination, reply->leafMac, MAC_LENGTH);
+            break;
+        }
         case PACKET_KEY_UPDATE: {
             if (length != sizeof(KeyUpdatePacket)) {
                 return nothing();

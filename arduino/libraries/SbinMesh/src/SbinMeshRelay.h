@@ -11,7 +11,8 @@
 //   - a gateway's BEACON is rebroadcast with hopsToGateway 1 and this node as its
 //     parent, so a leaf out of range hears the window and learns the time and the slot;
 //   - the leaf's DATA goes up to the gateway the beacon came from;
-//   - the gateway's ACK (with a command) and a KEY_UPDATE go down to the leaf they name.
+//   - the gateway's ACK (with a command) and a KEY_UPDATE go down to the leaf they name;
+//   - a JOIN of a leaf without keys goes up, and the gateway's JOIN_REPLY down to that leaf.
 //
 // The signatures do not cover hops, ttl, a beacon's hopsToGateway or its parent
 // (SbinMeshAuth.h), so none of this needs a key: a relay holds only its own leaf

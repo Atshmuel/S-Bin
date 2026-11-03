@@ -248,8 +248,12 @@ AuthResult MeshAuth::check(const uint8_t* frame, size_t length) const {
             if (length != sizeof(JoinPacket)) {
                 return AuthResult::BAD_LENGTH;
             }
-            // Not signed (the leaf has no key); the server checks its proof.
-            return role_ == Role::Gateway ? AuthResult::OK : AuthResult::NOT_FOR_ME;
+            // Not signed (the leaf has no key); the server checks its proof. A relaying leaf
+            // passes it to its gateway.
+            if (role_ == Role::Gateway) {
+                return AuthResult::OK;
+            }
+            return role_ == Role::Leaf && relaying_ ? AuthResult::FORWARD : AuthResult::NOT_FOR_ME;
         }
         case PACKET_KEY_UPDATE: {
             if (length != sizeof(KeyUpdatePacket)) {
@@ -278,9 +282,10 @@ AuthResult MeshAuth::check(const uint8_t* frame, size_t length) const {
                 return AuthResult::BAD_LENGTH;
             }
             const JoinReplyPacket* reply = reinterpret_cast<const JoinReplyPacket*>(frame);
-            return role_ == Role::Joining && memcmp(reply->leafMac, ownMac_, MAC_LENGTH) == 0
-                ? AuthResult::OK
-                : AuthResult::NOT_FOR_ME;
+            if (role_ == Role::Joining && memcmp(reply->leafMac, ownMac_, MAC_LENGTH) == 0) {
+                return AuthResult::OK;
+            }
+            return role_ == Role::Leaf && relaying_ ? AuthResult::FORWARD : AuthResult::NOT_FOR_ME;
         }
         default:
             return AuthResult::BAD_LENGTH;

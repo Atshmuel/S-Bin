@@ -67,6 +67,7 @@ uint32_t beaconHoldAckCount = 0;
 // task touches them, and the window opening resets them before it starts.
 struct HeardLeaf {
     uint8_t mac[MAC_LENGTH];
+    uint8_t nextHop[MAC_LENGTH];  // where to send to reach it: the leaf itself, or its relay
     uint32_t messageId;
     uint8_t keyId;
     bool answered;  // its ACK carried a command, or none is owed
@@ -80,9 +81,11 @@ uint8_t heardLeafCount = 0;
 struct JoinRequestSlot {
     JoinPacket packet;
     bool relayed;
+    uint8_t nextHop[MAC_LENGTH];  // the leaf itself, or the relay that passed its JOIN up
 };
 struct JoinReplySlot {
     JoinReplyPacket packet;
+    uint8_t nextHop[MAC_LENGTH];
     bool delivered;
     uint8_t attempts;
     uint32_t lastAttemptMs;
@@ -90,6 +93,7 @@ struct JoinReplySlot {
 // The leaves of the generation before that wait for their new keys in this window.
 struct KeyUpdateSlot {
     uint8_t mac[MAC_LENGTH];
+    uint8_t nextHop[MAC_LENGTH];
     uint8_t oldKeyId;
     bool delivered;
     uint8_t attempts;
@@ -175,12 +179,13 @@ void forgetResetLeaf(const uint8_t mac[MAC_LENGTH]) {
     xSemaphoreGive(relayQueueMutex);
 }
 
-void rememberHeardLeaf(const uint8_t mac[MAC_LENGTH], uint32_t messageId, uint8_t keyId, bool carriedCommand) {
+void rememberHeardLeaf(const uint8_t mac[MAC_LENGTH], const uint8_t nextHop[MAC_LENGTH], uint32_t messageId, uint8_t keyId, bool carriedCommand) {
     for (uint8_t i = 0; i < heardLeafCount; i++) {
         HeardLeaf& leaf = heardLeaves[i];
         if (!macEquals(leaf.mac, mac)) {
             continue;
         }
+        memcpy(leaf.nextHop, nextHop, MAC_LENGTH);
         if (leaf.messageId != messageId) {  // a newer reading, e.g. the result of the command
             leaf.messageId = messageId;
             leaf.keyId = keyId;
@@ -194,6 +199,7 @@ void rememberHeardLeaf(const uint8_t mac[MAC_LENGTH], uint32_t messageId, uint8_
     if (heardLeafCount < MAX_HEARD_LEAVES) {
         HeardLeaf& leaf = heardLeaves[heardLeafCount++];
         memcpy(leaf.mac, mac, MAC_LENGTH);
+        memcpy(leaf.nextHop, nextHop, MAC_LENGTH);
         leaf.messageId = messageId;
         leaf.keyId = keyId;
         leaf.answered = carriedCommand;
@@ -204,7 +210,7 @@ void rememberHeardLeaf(const uint8_t mac[MAC_LENGTH], uint32_t messageId, uint8_
 
 // A leaf without keys asks to join: kept (one per leaf and window) for the main
 // task to pass to the server, which alone can check it.
-void rememberJoin(const JoinPacket& join) {
+void rememberJoin(const JoinPacket& join, const uint8_t nextHop[MAC_LENGTH]) {
     xSemaphoreTake(relayQueueMutex, portMAX_DELAY);
     bool known = false;
     for (uint8_t i = 0; i < joinRequestCount && !known; i++) {
@@ -212,7 +218,10 @@ void rememberJoin(const JoinPacket& join) {
     }
     const bool stored = !known && joinRequestCount < MAX_JOIN_REQUESTS;
     if (stored) {
-        joinRequests[joinRequestCount++] = {join, false};
+        JoinRequestSlot& slot = joinRequests[joinRequestCount++];
+        slot.packet = join;
+        slot.relayed = false;
+        memcpy(slot.nextHop, nextHop, MAC_LENGTH);
     }
     xSemaphoreGive(relayQueueMutex);
     if (stored) {
@@ -239,7 +248,16 @@ bool takeJoinToRelay(JoinPacket& out) {
 void storeJoinReply(const JoinReplyPacket& reply) {
     xSemaphoreTake(relayQueueMutex, portMAX_DELAY);
     if (joinReplyCount < MAX_JOIN_REQUESTS) {
-        joinReplies[joinReplyCount++] = {reply, false, 0, 0};
+        JoinReplySlot& slot = joinReplies[joinReplyCount++];
+        slot = {reply, {}, false, 0, 0};
+        // Through the neighbour that passed the leaf's JOIN, else to the leaf itself.
+        memcpy(slot.nextHop, reply.leafMac, MAC_LENGTH);
+        for (uint8_t i = 0; i < joinRequestCount; i++) {
+            if (macEquals(joinRequests[i].packet.header.origin, reply.leafMac)) {
+                memcpy(slot.nextHop, joinRequests[i].nextHop, MAC_LENGTH);
+                break;
+            }
+        }
     }
     xSemaphoreGive(relayQueueMutex);
 }
@@ -254,7 +272,7 @@ void extendMeshWindow(uint32_t ms) {
 
 // A reading came with the generation before this gateway's keys: its leaf is to be
 // given the new ones (once a window).
-void rememberKeyUpdate(const uint8_t mac[MAC_LENGTH], uint8_t oldKeyId) {
+void rememberKeyUpdate(const uint8_t mac[MAC_LENGTH], const uint8_t nextHop[MAC_LENGTH], uint8_t oldKeyId) {
     xSemaphoreTake(relayQueueMutex, portMAX_DELAY);
     bool known = false;
     for (uint8_t i = 0; i < keyUpdateCount && !known; i++) {
@@ -263,6 +281,7 @@ void rememberKeyUpdate(const uint8_t mac[MAC_LENGTH], uint8_t oldKeyId) {
     if (!known && keyUpdateCount < MAX_JOIN_REQUESTS) {
         KeyUpdateSlot& slot = keyUpdates[keyUpdateCount++];
         memcpy(slot.mac, mac, MAC_LENGTH);
+        memcpy(slot.nextHop, nextHop, MAC_LENGTH);
         slot.oldKeyId = oldKeyId;
         slot.delivered = false;
         slot.attempts = 0;
@@ -361,7 +380,11 @@ void handleMeshFrame(const ReceivedFrame& frame) {
     // Other gateways' beacons and stray ACKs are ignored by a gateway.
     const JoinPacket* join = frame.as<JoinPacket>(PACKET_JOIN);
     if (join != nullptr) {
-        rememberJoin(*join);
+        // A JOIN a relaying leaf passed up keeps the window open as long as one heard directly.
+        if (join->header.hops > 0) {
+            extendMeshWindow(JOIN_WINDOW_EXTENSION_MS);
+        }
+        rememberJoin(*join, frame.sender);
         return;
     }
     const DataPacket* data = frame.as<DataPacket>(PACKET_DATA);
@@ -403,7 +426,7 @@ void handleMeshFrame(const ReceivedFrame& frame) {
     ack.status = duplicate ? ACK_DUPLICATE : ACK_STORED;
     // A reading signed with the generation before ours: the new keys follow (only for
     // a leaf heard directly, the one the update can be sent to).
-    const bool needsKeyUpdate = meshAuth.isPreviousKeyId(data->header.keyId) && macEquals(origin, frame.sender);
+    const bool needsKeyUpdate = meshAuth.isPreviousKeyId(data->header.keyId);
     if (needsKeyUpdate) {
         ack.status = ACK_STORED_KEY_UPDATE;
     }
@@ -418,12 +441,10 @@ void handleMeshFrame(const ReceivedFrame& frame) {
         forgetResetLeaf(origin);
     }
     if (needsKeyUpdate) {
-        rememberKeyUpdate(origin, data->header.keyId);
+        rememberKeyUpdate(origin, frame.sender, data->header.keyId);
     }
-    // Only a leaf heard directly can be answered again.
-    if (macEquals(origin, frame.sender)) {
-        rememberHeardLeaf(origin, messageId, data->header.keyId, ack.instructionType != INSTRUCTION_NONE);
-    }
+    // A leaf is answered again through the neighbour its reading came from: itself, or its relay.
+    rememberHeardLeaf(origin, frame.sender, messageId, data->header.keyId, ack.instructionType != INSTRUCTION_NONE);
 
     char macText[18];
     formatMac(origin, macText);
@@ -460,7 +481,7 @@ void sendLateCommands() {
         uint8_t ackFrame[sizeof(AckPacket) + TAG_LENGTH];
         memcpy(ackFrame, &ack, sizeof(ack));
         const size_t ackLength = meshAuth.signAck(ackFrame, sizeof(ack), leaf.keyId);
-        const bool sent = ackLength > 0 && meshRadio.sendTo(leaf.mac, ackFrame, ackLength);
+        const bool sent = ackLength > 0 && meshRadio.sendTo(leaf.nextHop, ackFrame, ackLength);
         if (sent && ack.instructionType == INSTRUCTION_RESET) {
             forgetResetLeaf(leaf.mac);
         }
@@ -484,7 +505,7 @@ void sendJoinReplies() {
         }
         JoinReplyPacket reply = slot.packet;
         meshRadio.initHeader(reply.header, PACKET_JOIN_REPLY);
-        slot.delivered = meshRadio.sendTo(reply.leafMac, &reply, sizeof(reply));
+        slot.delivered = meshRadio.sendTo(slot.nextHop, &reply, sizeof(reply));
         slot.attempts++;
         slot.lastAttemptMs = millis();
         if (slot.delivered || slot.attempts == MAX_JOIN_REPLY_ATTEMPTS) {
@@ -516,7 +537,7 @@ void sendKeyUpdates() {
             continue;
         }
         meshRadio.initHeader(update.header, PACKET_KEY_UPDATE);
-        slot.delivered = meshRadio.sendTo(slot.mac, &update, sizeof(update));
+        slot.delivered = meshRadio.sendTo(slot.nextHop, &update, sizeof(update));
         slot.attempts++;
         slot.lastAttemptMs = millis();
         if (slot.delivered || slot.attempts == MAX_KEY_UPDATE_ATTEMPTS) {

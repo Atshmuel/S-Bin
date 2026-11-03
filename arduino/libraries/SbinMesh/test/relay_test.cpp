@@ -250,10 +250,10 @@ static void testLimits() {
     CHECK(prepareForward(data.bytes, data.length, CHILD_MAC, GATEWAY_MAC, out).kind == ForwardKind::NONE);
     CHECK(prepareForward(data.bytes, data.length - 1, RELAY_MAC, GATEWAY_MAC, out).kind == ForwardKind::NONE);
     CHECK(prepareForward(data.bytes, sizeof(PacketHeader) - 1, RELAY_MAC, GATEWAY_MAC, out).kind == ForwardKind::NONE);
-    Frame join = data;
-    reinterpret_cast<PacketHeader*>(join.bytes)->type = PACKET_JOIN;
-    join.length = sizeof(JoinPacket);
-    CHECK(prepareForward(join.bytes, join.length, RELAY_MAC, GATEWAY_MAC, out).kind == ForwardKind::NONE);
+    Frame request = data;   // a relay request is asked of a relay, never passed on
+    reinterpret_cast<PacketHeader*>(request.bytes)->type = PACKET_RELAY_REQUEST;
+    request.length = sizeof(RelayRequestPacket);
+    CHECK(prepareForward(request.bytes, request.length, RELAY_MAC, GATEWAY_MAC, out).kind == ForwardKind::NONE);
     Frame junk = data;
     junk.bytes[offsetof(PacketHeader, type)] = 99;
     CHECK(prepareForward(junk.bytes, junk.length, RELAY_MAC, GATEWAY_MAC, out).kind == ForwardKind::NONE);
@@ -307,7 +307,61 @@ static void testRelayRequest() {
     CHECK(prepareForward(frame, sizeof(frame), RELAY_MAC, GATEWAY_MAC, out).kind == ForwardKind::NONE);
 }
 
+static void testJoinThroughRelay() {
+    const Key org = rangeKey(7);
+    MeshAuth relay = leafOf(org, RELAY_MAC, 1);
+    MeshAuth idle = leafOf(org, OTHER_MAC, 1);
+    MeshAuth gateway;
+    gateway.useOrganizationKey(org, 1);
+    relay.setRelaying(true);
+
+    // A JOIN heard by a relaying leaf is passed up, unchanged but for hops and ttl.
+    JoinPacket join = {};
+    fillHeader(join.header, PACKET_JOIN, CHILD_MAC);
+    uint8_t joinFrame[sizeof(JoinPacket)];
+    memcpy(joinFrame, &join, sizeof(join));
+    CHECK(relay.verify(joinFrame, sizeof(joinFrame)) == AuthResult::FORWARD);
+    CHECK(idle.verify(joinFrame, sizeof(joinFrame)) == AuthResult::NOT_FOR_ME);   // not relaying
+    CHECK(gateway.verify(joinFrame, sizeof(joinFrame)) == AuthResult::OK);        // the gateway takes it
+    uint8_t out[MAX_FRAME_SIZE];
+    const ForwardAction up = prepareForward(joinFrame, sizeof(joinFrame), RELAY_MAC, GATEWAY_MAC, out);
+    CHECK(up.kind == ForwardKind::UP && up.length == sizeof(join) && memcmp(up.destination, GATEWAY_MAC, MAC_LENGTH) == 0);
+    const PacketHeader* sent = reinterpret_cast<const PacketHeader*>(out);
+    CHECK(sent->hops == 1 && sent->ttl == join.header.ttl - 1 && memcmp(sent->origin, CHILD_MAC, MAC_LENGTH) == 0);
+    CHECK(memcmp(out + sizeof(PacketHeader), joinFrame + sizeof(PacketHeader), sizeof(join) - sizeof(PacketHeader)) == 0);
+    CHECK(prepareForward(joinFrame, sizeof(joinFrame), RELAY_MAC, ZERO_MAC, out).kind == ForwardKind::NONE);  // no gateway yet
+    CHECK(prepareForward(joinFrame, sizeof(joinFrame) - 1, RELAY_MAC, GATEWAY_MAC, out).kind == ForwardKind::NONE);
+    uint8_t passedOn[MAX_FRAME_SIZE];
+    CHECK(prepareForward(joinFrame, sizeof(joinFrame), RELAY_MAC, GATEWAY_MAC, passedOn).kind == ForwardKind::UP);
+    CHECK(prepareForward(passedOn, sizeof(joinFrame), OTHER_MAC, GATEWAY_MAC, out).kind == ForwardKind::NONE);   // once only
+
+    // The gateway's JOIN_REPLY for that leaf is passed down to it.
+    JoinReplyPacket reply = {};
+    fillHeader(reply.header, PACKET_JOIN_REPLY, GATEWAY_MAC);
+    memcpy(reply.leafMac, CHILD_MAC, MAC_LENGTH);
+    uint8_t replyFrame[sizeof(JoinReplyPacket)];
+    memcpy(replyFrame, &reply, sizeof(reply));
+    CHECK(relay.verify(replyFrame, sizeof(replyFrame)) == AuthResult::FORWARD);
+    CHECK(idle.verify(replyFrame, sizeof(replyFrame)) == AuthResult::NOT_FOR_ME);
+    MeshAuth joining;
+    joining.useJoining(CHILD_MAC);
+    CHECK(joining.verify(replyFrame, sizeof(replyFrame)) == AuthResult::OK);       // its own, checked by its code
+    MeshAuth joiningOther;
+    joiningOther.useJoining(OTHER_MAC);
+    CHECK(joiningOther.verify(replyFrame, sizeof(replyFrame)) == AuthResult::NOT_FOR_ME);
+    const ForwardAction down = prepareForward(replyFrame, sizeof(replyFrame), RELAY_MAC, GATEWAY_MAC, out);
+    CHECK(down.kind == ForwardKind::DOWN && down.length == sizeof(reply) && memcmp(down.destination, CHILD_MAC, MAC_LENGTH) == 0);
+    CHECK(prepareForward(replyFrame, sizeof(replyFrame) - 1, RELAY_MAC, GATEWAY_MAC, out).kind == ForwardKind::NONE);
+    // A reply for the relay itself is not passed on.
+    JoinReplyPacket own = reply;
+    memcpy(own.leafMac, RELAY_MAC, MAC_LENGTH);
+    uint8_t ownFrame[sizeof(JoinReplyPacket)];
+    memcpy(ownFrame, &own, sizeof(own));
+    CHECK(prepareForward(ownFrame, sizeof(ownFrame), RELAY_MAC, GATEWAY_MAC, out).kind == ForwardKind::NONE);
+}
+
 int main() {
+    testJoinThroughRelay();
     testRelayRequest();
     testBeaconRebroadcast();
     testDataGoesUp();
