@@ -1165,139 +1165,139 @@
         "demo": "Get a demo"
       },
       "hero": {
-        "eyebrow": "IoT smart waste",
-        "title": "The bin that tells you when it's full.",
-        "text": "sBin turns a wheelie bin into a connected one. It weighs what goes in, measures how full it is and tells your team the moment it needs emptying, so trucks drive to full bins, not empty ones.",
+        "eyebrow": "Smart Waste Management",
+        "title": "Stop collecting empty bins. Start collecting smarter.",
+        "text": "Turn your waste collection network into a connected, data-driven operation. sBin gives you real-time visibility into bin fill levels, weight and location, helping your team identify which bins need attention and make smarter collection decisions.",
         "start": "Get started",
         "how": "See how it works",
         "scroll": "Scroll",
         "demo": "Get a demo"
       },
       "weigh": {
-        "title": "It weighs every bag.",
-        "text": "The whole bin is a scale. Each bag that goes in is weighed as it lands, so you know what is really being thrown away, not just how often the bin gets emptied."
+        "title": "Know what every bin collects.",
+        "text": "Go beyond counting pickups. sBin measures the weight of incoming waste, giving you a clearer picture of how much each bin collects and helping you understand waste volumes across your entire collection network."
       },
       "measure": {
-        "title": "It sees how full it is.",
-        "text": "A sensor looks down into the bin and measures the real level, not a guess from a schedule. You see 73% full, not \"probably full\"."
+        "title": "Know which bins actually need emptying.",
+        "text": "Smart sensors measure the actual fill level inside each bin, giving your team a real-time view of its capacity. Make collection decisions based on what's happening on the ground, not fixed schedules or assumptions."
       },
       "report": {
-        "title": "It reports on its own.",
-        "text": "Weight, fill level and position reach your dashboard by themselves, wherever the bin stands. Nobody has to walk the route just to look."
+        "title": "Your entire bin network. One clear view.",
+        "text": "Bin weight, fill levels and locations are automatically reported to your dashboard. Monitor your entire operation remotely, identify bins that need attention and give your team the information it needs without unnecessary site visits."
       },
       "route": {
-        "title": "The best route, not the default one.",
-        "text": "Instead of the same round every day, sBin builds a route through just the bins that need emptying, so trucks drive less and never stop at an empty bin.",
-        "legendDefault": "Default round: every bin, every day",
-        "legendBest": "sBin route: only the bins that need it"
+        "title": "Smarter routes. Fewer unnecessary pickups.",
+        "text": "Why send trucks to every bin when only some need emptying? sBin helps build optimized collection routes based on actual bin conditions, reducing unnecessary stops, saving driving time and making better use of your fleet.",
+        "legendDefault": "Traditional route: Every bin, every day",
+        "legendBest": "sBin route: Only bins that need collection"
       },
       "lineup": {
-        "title": "For new bins and the ones you already own.",
-        "text": "Choose how sBin comes to your street.",
-        "hint": "Drag a model to turn it and see it from every side."
+        "title": "One solution for new bins and existing fleets.",
+        "text": "Whether you're deploying new bins or upgrading the ones you already own, sBin fits your operation.",
+        "hint": "Drag a model to explore it from every angle."
       },
       "labels": {
         "weight": "Weight",
         "fill": "Fill level",
-        "bin": "sBin bin",
-        "binText": "Connectivity built into the bin from the factory.",
+        "bin": "sBin smart bin",
+        "binText": "Smart monitoring and connectivity built into the bin.",
         "device": "Plug & play",
-        "deviceText": "Add it to the bin you already own. Shown 5 times larger.",
+        "deviceText": "Upgrade your existing bins with a smart monitoring device. Shown 5 times larger.",
         "live": "Online, just now"
       },
       "card": {
         "name": "Bin A-142",
         "street": "Elm Street",
         "status": "Almost full",
-        "fill": "Fill",
+        "fill": "Fill level",
         "weight": "Weight",
         "now": "Now",
         "updated": "Updated"
       },
       "cta": {
-        "title": "Ready to see it on your bins?",
-        "text": "Get a demo and see every bin, its weight and its fill level on one map.",
+        "title": "Ready to make your collection operation smarter?",
+        "text": "See how sBin can help you monitor every bin, reduce unnecessary pickups and manage your entire collection network from one platform.",
         "demo": "Get a demo",
         "login": "Log in"
       },
       "footer": {
         "support": "Support",
-        "rights": "sBin. IoT smart waste."
+        "rights": "sBin. Smart Waste Management."
       },
       "benefits": {
-        "title": "Everything you need to run collection by data.",
-        "text": "One bin, one dashboard, no guessing.",
+        "title": "Everything you need to manage waste collection smarter.",
+        "text": "One connected network. Complete visibility. Better decisions.",
         "weigh": {
-          "title": "Real weight",
-          "text": "Every bag is weighed as it goes in, so you see how much each bin really collects."
+          "title": "Accurate weight data",
+          "text": "Track the weight of incoming waste and understand how much each bin collects over time."
         },
         "level": {
-          "title": "Real fill level",
-          "text": "A sensor measures how full the bin is, instead of trusting a collection schedule."
+          "title": "Real-time fill monitoring",
+          "text": "Know how full each bin is and prioritize collections based on actual conditions."
         },
         "place": {
-          "title": "Always located",
-          "text": "Each bin reports its position, so it is always on the map where it actually stands."
+          "title": "Live location tracking",
+          "text": "Know where every bin is and monitor your entire collection network on one map."
         },
         "alert": {
-          "title": "Alerts when it matters",
-          "text": "Get notified when a bin is nearly full or something needs your attention."
+          "title": "Alerts that keep you ahead",
+          "text": "Get notified when bins approach capacity or require attention, so your team can act at the right time."
         },
         "route": {
-          "title": "Routes that make sense",
-          "text": "A route through just the bins that need emptying, ready for the driver in the same app."
+          "title": "Optimized collection routes",
+          "text": "Plan routes around the bins that actually need emptying, helping drivers avoid unnecessary stops and trips."
         },
         "team": {
-          "title": "One dashboard for the team",
-          "text": "Owners, admins and drivers each see what they need, on one map."
+          "title": "One platform for your entire team",
+          "text": "Give owners, administrators and drivers the information and tools they need, all in one place."
         }
       },
       "roi": {
-        "title": "See what unnecessary pickups cost you.",
-        "text": "Enter your own numbers. Every pickup of a bin that was not full yet is a trip you did not need to make.",
-        "bins": "Bins",
+        "title": "How much are unnecessary pickups costing you?",
+        "text": "Estimate your potential savings using your own operational numbers. Every pickup of a bin that isn't ready to be emptied could be an avoidable trip.",
+        "bins": "Number of bins",
         "pickups": "Pickups per bin, per month",
-        "cost": "Cost of one pickup",
-        "share": "Pickups that were not needed",
-        "result": "You could save about",
+        "cost": "Cost per pickup",
+        "share": "Estimated unnecessary pickups",
+        "result": "Your potential savings",
         "perYear": "per year",
-        "avoided": "pickups avoided each month",
-        "perMonth": "saved each month",
-        "note": "An estimate from the numbers you entered, including your own guess of how many pickups are unnecessary. It is not a promise. We will go through your real numbers in the demo."
+        "avoided": "potentially avoided pickups each month",
+        "perMonth": "potential monthly savings",
+        "note": "This estimate is based on the numbers you provide, including your estimate of unnecessary pickups. Actual savings depend on your collection operation and conditions. We'll help you evaluate your real numbers during the demo."
       },
       "faq": {
-        "title": "Questions we hear",
+        "title": "Frequently asked questions",
         "existing": {
-          "q": "Can I use sBin on the bins I already have?",
-          "a": "Yes. The plug & play device is added to a bin you already own. You can also choose the sBin bin, which has it built in."
+          "q": "Can I use sBin with the bins I already own?",
+          "a": "Absolutely. Our plug & play device can be installed on your existing bins, allowing you to upgrade your current fleet without replacing every bin. You can also choose the dedicated sBin smart bin, with monitoring technology built in."
         },
         "measures": {
-          "q": "What does it measure?",
-          "a": "The weight of what goes in, how full the bin is, and where the bin is."
+          "q": "What does sBin measure?",
+          "a": "sBin monitors incoming waste weight, bin fill levels and bin location, giving you a more complete picture of your collection operation."
         },
         "connects": {
-          "q": "How does the data reach me?",
-          "a": "Each bin sends its readings over the cellular network to your dashboard. You do not walk the route to look."
+          "q": "How does the data reach my dashboard?",
+          "a": "Each connected bin transmits its readings over the cellular network to your dashboard, allowing you to monitor your fleet remotely without physically checking every bin."
         },
         "team": {
-          "q": "Who uses the dashboard?",
-          "a": "Owners, admins and drivers. Each role sees what it needs: the full picture, the bins and users, or the route to drive."
+          "q": "Who can use the dashboard?",
+          "a": "sBin supports different user roles, including owners, administrators and drivers. Each role gets access to the information and tools relevant to its responsibilities."
         },
         "start": {
-          "q": "How do I start?",
-          "a": "Ask for a demo. We will show you the system on your own kind of bins and go through your numbers with you."
+          "q": "How can I get started?",
+          "a": "Simply request a demo. We'll walk you through the platform, explore how sBin fits your existing bins and collection operation, and discuss your potential savings."
         }
       },
       "demo": {
-        "title": "Get a demo",
-        "text": "Tell us a little about you and we will be in touch.",
-        "name": "Name",
-        "email": "Email",
-        "company": "Company",
-        "bins": "How many bins?",
-        "message": "Anything we should know?",
-        "send": "Send request",
-        "subject": "sBin demo request"
+        "title": "Let's make waste collection smarter.",
+        "text": "Tell us a little about your organization and our team will get in touch to explore how sBin can help.",
+        "name": "Full name",
+        "email": "Work email",
+        "company": "Organization / Company",
+        "bins": "How many bins do you manage?",
+        "message": "Tell us about your operation or specific needs",
+        "send": "Request a demo",
+        "subject": "sBin Demo Request"
       }
     }
   },

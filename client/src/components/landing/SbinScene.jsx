@@ -161,8 +161,8 @@ function Truck({ groupRef, accent }) {
 
 // A small label that floats beside a thing in the scene; the scene sets its text and opacity.
 function Chip({ position, chipRef, tone }) {
-    return <Html position={position} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-        <div ref={chipRef} style={{ opacity: 0 }}
+    return <Html position={position} center zIndexRange={[20, 0]} wrapperClass="[direction:ltr]" style={{ pointerEvents: "none" }}>
+        <div ref={chipRef} dir="auto" style={{ opacity: 0 }}
             className={`rounded-full border px-3 py-1 text-xs font-medium whitespace-nowrap backdrop-blur-md ${tone}`} />
     </Html>
 }
@@ -451,7 +451,7 @@ function World({ labels, direction, mobile }) {
                     <sphereGeometry args={[0.075, 20, 20]} />
                     <meshBasicMaterial color={color} toneMapped={false} />
                 </mesh>
-                <Html center position={[0, 0.22, 0]} style={{ pointerEvents: "none" }}>
+                <Html center position={[0, 0.22, 0]} wrapperClass="[direction:ltr]" style={{ pointerEvents: "none" }}>
                     <div ref={el => { fleetChips.current[i] = el }} style={{ opacity: 0, color: `rgb(${r * 255},${g * 255},${b * 255})` }}
                         className="rounded-full border border-white/20 bg-black/55 px-2.5 py-0.5 text-xs font-semibold backdrop-blur-md">
                         {Math.round(bin.level * 100)}%

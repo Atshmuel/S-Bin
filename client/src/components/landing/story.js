@@ -6,6 +6,11 @@ import { MathUtils } from "three"
 export const story = { raw: 0, p: 0 }
 
 export const clamp01 = x => Math.min(1, Math.max(0, x))
+// The first stretch of the scroll is played faster, so the first thing happens
+// within a flick of the wheel instead of after a screen of nothing.
+const HEAD_RAW = 0.04, HEAD_P = 0.1
+export const warp = raw => raw < HEAD_RAW ? raw * HEAD_P / HEAD_RAW : HEAD_P + (raw - HEAD_RAW) * (1 - HEAD_P) / (1 - HEAD_RAW)
+export const unwarp = p => p < HEAD_P ? p * HEAD_RAW / HEAD_P : HEAD_RAW + (p - HEAD_P) * (1 - HEAD_RAW) / (1 - HEAD_P)
 export const ease = t => t * t * (3 - 2 * t)
 // 0 before a, 1 after b, eased in between.
 export const seg = (p, a, b) => ease(clamp01((p - a) / (b - a)))
@@ -41,8 +46,8 @@ export const KEYS = [
     K(0.50, [2.60, 1.0, 2.30], [0, 0.46, 0], 0.2),
     K(0.57, [0.25, 1.0, 5.0], [0, 1.1, 0], -0.2, 0, 0.27),
     K(0.70, [0.25, 1.0, 5.0], [0, 1.1, 0], -0.2, 0, 0.27),
-    K(0.77, [0, 4.40, 6.60], [0, 0.10, 0], 0, -0.16, 0.1),
-    K(0.86, [0, 4.40, 6.60], [0, 0.10, 0], 0, -0.16, 0.1),
+    K(0.77, [0, 4.40, 6.60], [0, 0.10, 0], 0, -0.22, 0.1),
+    K(0.86, [0, 4.40, 6.60], [0, 0.10, 0], 0, -0.22, 0.1),
     K(0.93, [0, 1.25, 5.10], [0, 0.55, 0], 0, -0.1, 0.1),
     K(1.00, [0, 1.25, 5.10], [0, 0.55, 0], 0, -0.1, 0.1),
 ]

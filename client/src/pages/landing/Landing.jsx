@@ -7,7 +7,7 @@ import Benefits from "@/components/landing/Benefits"
 import RoiCalculator from "@/components/landing/RoiCalculator"
 import Faq from "@/components/landing/Faq"
 import DemoDialog from "@/components/landing/DemoDialog"
-import { CHAPTERS, cameraAt, chapterAt, clamp01, story } from "@/components/landing/story"
+import { CHAPTERS, cameraAt, chapterAt, clamp01, story, unwarp, warp } from "@/components/landing/story"
 import smallLogo from "@/assets/Sbin-small-logo.png"
 import { APP_URL } from "@/utils/constants"
 
@@ -35,7 +35,7 @@ function Panel({ chapter, index, active, children }) {
     return <div aria-hidden={!active}
         className={`absolute inset-0 flex items-end justify-center px-6 pb-8 pt-24 transition-all duration-700 md:px-16 md:pb-10 ${placement}
             pointer-events-none ${active ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"}`}>
-        <div className={`w-full max-w-md rounded-3xl max-md:bg-gradient-to-t max-md:from-[#070b12] max-md:via-[#070b12]/80 max-md:to-transparent max-md:px-1 max-md:pt-16 ${chapter.side === "top" ? "md:max-w-xl" : "md:max-w-[28rem]"}`}>
+        <div className={`w-full max-w-md rounded-3xl max-md:bg-gradient-to-t max-md:from-[#070b12] max-md:via-[#070b12]/80 max-md:to-transparent max-md:px-1 max-md:pt-16 ${chapter.side === "top" ? "md:max-w-2xl" : "md:max-w-[28rem]"}`}>
             {index > 0 && <p className="mb-3 text-sm font-medium tracking-widest" style={{ color: GREEN }}>{String(index).padStart(2, "0")}</p>}
             {children}
         </div>
@@ -64,7 +64,7 @@ function Landing() {
             frame = 0
             const el = stage.current
             if (!el) return
-            const raw = clamp01(-el.getBoundingClientRect().top / (el.offsetHeight - window.innerHeight))
+            const raw = warp(clamp01(-el.getBoundingClientRect().top / (el.offsetHeight - window.innerHeight)))
             story.raw = raw
             setChapter(chapterAt(raw))
             glow.current?.style.setProperty("--glow-x", `${50 + cameraAt(raw).shift * direction * 100}%`)
@@ -91,7 +91,7 @@ function Landing() {
     function goTo(index) {
         const el = stage.current
         const total = el.offsetHeight - window.innerHeight
-        window.scrollTo({ top: el.offsetTop + total * (CHAPTERS[index].from + 0.005), behavior: "smooth" })
+        window.scrollTo({ top: el.offsetTop + total * (unwarp(CHAPTERS[index].from) + 0.003), behavior: "smooth" })
     }
 
     // Where the three models stand on screen in the line-up, so each label sits under its own.
