@@ -230,6 +230,9 @@ void loop() {
 
     Serial.println(reportSent ? "✅ Reporting cycle completed." : "⚠️ Reporting cycle ended without a telemetry report.");
     recordReportOutcome(reportSent);
+    if (reportSent) {
+        clearPmuOffSource();
+    }
     // Again mid-cycle: the boot and pre-sleep lines often miss a monitor.
     if (pmuPowerSources.length() > 0) {
         Serial.println(pmuPowerSources);

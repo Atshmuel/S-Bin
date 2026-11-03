@@ -63,6 +63,21 @@ void readPmuPowerSources() {
     pmuPowerSources += "\n" + pmuRailsText();
 }
 
+// The chip keeps the reason of its last power-off until the next one, so a cut that
+// happened once (2026-10-28, DCDC over-voltage) was reported by every wake after it and
+// read as a standing fault. Once a report carried it, the bits read are written back:
+// the register clears on a write of 1 (a register that did not would be unchanged), and
+// a power-off from now on is the only thing it shows.
+void clearPmuOffSource() {
+    if (!pmuAvailable || pmuOffSource == 0) {
+        return;
+    }
+    PMU.writeRegister(XPOWERS_AXP2101_PWROFF_STATUS, pmuOffSource);
+    const uint8_t left = static_cast<uint8_t>(PMU.getPowerOffSource());
+    Serial.printf("🔋 PMU power-off reason 0x%02X reported; register now 0x%02X%s.\n", pmuOffSource, left,
+                  left == 0 ? " (cleared)" : " (the chip keeps it)");
+}
+
 // Which AXP2101 rails are on and at what voltage, to spot one that is on
 // without a load (a candidate for the DCDC over-voltage power-off).
 String pmuRailsText() {
