@@ -15,6 +15,24 @@ const LOG_SORT_FIELDS = Object.freeze({
     health: healthRank('$health'),
 });
 
+// The gateway and the relaying leaf a log came through, by name; only bins of the
+// organization the log's own bin is in.
+async function connectionNames(logs, ownerIdOf) {
+    const ids = new Set();
+    for (const log of logs) {
+        if (log.gatewayId) ids.add(String(log.gatewayId));
+        if (log.viaLeafId) ids.add(String(log.viaLeafId));
+    }
+    if (ids.size === 0) return () => ({ gateway: null, relay: null });
+    const bins = await binModel.find({ _id: { $in: [...ids] } }, { binName: 1, ownerId: 1 }).lean();
+    const byId = new Map(bins.map(bin => [String(bin._id), bin]));
+    const named = (id, ownerId) => {
+        const bin = id ? byId.get(String(id)) : null;
+        return bin && String(bin.ownerId) === String(ownerId) ? { _id: bin._id, binName: bin.binName } : null;
+    };
+    return (log) => ({ gateway: named(log.gatewayId, ownerIdOf(log)), relay: named(log.viaLeafId, ownerIdOf(log)) });
+}
+
 export async function getBinLog(req, res) {
     const { withBin } = req.query
     const { logId } = req.params;
@@ -43,7 +61,13 @@ export async function getBinLog(req, res) {
         if (!isBinOwner)
             return res.status(403).json({ message: 'This bin is not owned by you' })
 
-        res.status(201).json({ log })
+        // With its bin (the log page), it names the gateway and the relay it came through.
+        const body = log.toJSON();
+        if (withBin && log.bin) {
+            const namesOf = await connectionNames([body], () => log.bin.ownerId);
+            Object.assign(body, namesOf(body));
+        }
+        res.status(201).json({ log: body })
     } catch (error) {
         res.status(500).json({ message: error?.message || error })
     }

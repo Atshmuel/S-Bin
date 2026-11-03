@@ -1,6 +1,8 @@
 import HealthBadge from "@/components/bins/HealthBadge"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../../ui/card"
-import { Activity, CalendarClock, GaugeCircle, InfoIcon, Trash2 } from "lucide-react"
+import { Activity, BatteryMedium, CalendarClock, GaugeCircle, InfoIcon, Trash2 } from "lucide-react"
+import { Link } from "react-router-dom"
+import Battery from "@/components/bins/Battary"
 import EmptyCard from "@/components/EmptyCard"
 import { Spinner } from "@/components/ui/spinner"
 import { useTranslation } from "react-i18next"
@@ -77,9 +79,51 @@ function LogCard({ log, isLoading = true, ...props }) {
                                     <CalendarClock size={16} /> {t("components.logCard.timestamp")}:
                                 </span>
                                 <span>
-                                    {formatDate(log.createdAt, isRight, { hour: "2-digit", minute: "2-digit" })}
+                                    {formatDate(log.createdAt, isRight, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                                 </span>
                             </div>
+
+                            <div className="flex justify-between">
+                                <span className="font-medium flex items-center gap-2">
+                                    <BatteryMedium size={16} /> {t("components.logCard.battery")}:
+                                </span>
+                                <span className="flex items-center gap-2">
+                                    <Battery level={log.battery} ownerId={log.bin?.ownerId} /> {log.battery}%
+                                </span>
+                            </div>
+
+                            {log.connection && <>
+                                <div className="flex justify-between">
+                                    <span className="font-medium">{t("components.logCard.connection")}:</span>
+                                    <span>{t("components.logCard." + log.connection)}</span>
+                                </div>
+                                {log.connection === "mesh" && <>
+                                    {log.gateway && (
+                                        <div className="flex justify-between">
+                                            <span className="font-medium">{t("components.logCard.gateway")}:</span>
+                                            <Link className="text-primary underline-offset-4 hover:underline" to={`/bins/${log.gateway._id}`}>{log.gateway.binName}</Link>
+                                        </div>
+                                    )}
+                                    {log.relay && (
+                                        <div className="flex justify-between">
+                                            <span className="font-medium">{t("components.logCard.relay")}:</span>
+                                            <Link className="text-primary underline-offset-4 hover:underline" to={`/bins/${log.relay._id}`}>{log.relay.binName}</Link>
+                                        </div>
+                                    )}
+                                    {log.hops != null && (
+                                        <div className="flex justify-between">
+                                            <span className="font-medium">{t("components.binCard.hops")}:</span>
+                                            <span>{log.hops === 1 ? t("components.logCard.direct") : t("components.logCard.hops", { count: log.hops })}</span>
+                                        </div>
+                                    )}
+                                    {log.rssi != null && (
+                                        <div className="flex justify-between">
+                                            <span className="font-medium">{t("components.logCard.signal")}:</span>
+                                            <span dir="ltr">{log.rssi} dBm</span>
+                                        </div>
+                                    )}
+                                </>}
+                            </>}
 
                             {log.lastAwakeSeconds != null && (
                                 <div className="flex justify-between">

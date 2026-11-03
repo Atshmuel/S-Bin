@@ -51,8 +51,17 @@ export async function getBin(req, res) {
                     ownerId: device.ownerId,
                     $or: [{ 'status.connection.gatewayId': device._id }, { 'status.connection.viaLeafId': device._id }],
                 },
-                { binName: 1, 'status.updatedAt': 1, 'status.connection.hops': 1, 'status.connection.rssi': 1 }
+                { binName: 1, 'status.updatedAt': 1, 'status.connection.hops': 1, 'status.connection.rssi': 1, 'status.connection.viaLeafId': 1 }
             ).lean();
+            // Each names the leaf that relayed it, when it came by more than one hop.
+            const relayIds = [...new Set(device.connectedLeaves.map(leaf => String(leaf.status?.connection?.viaLeafId ?? '')).filter(Boolean))];
+            if (relayIds.length > 0) {
+                const relays = await binModel.find({ _id: { $in: relayIds }, ownerId: device.ownerId }, { binName: 1 }).lean();
+                const relayById = new Map(relays.map(relay => [String(relay._id), relay]));
+                for (const leaf of device.connectedLeaves) {
+                    leaf.relay = relayById.get(String(leaf.status?.connection?.viaLeafId ?? '')) ?? null;
+                }
+            }
             // When the device next reports, which is when it gets queued instructions.
             const { reportIntervalMinutes, reportStartHour } = await getOrgDeviceSettingsShared(device.ownerId);
             device.reportSchedule = { reportIntervalMinutes, reportStartHour };

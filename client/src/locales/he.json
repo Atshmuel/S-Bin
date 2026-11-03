@@ -983,7 +983,8 @@
       },
       "connectedTable": {
         "name": "פח",
-        "signal": "עוצמת אות (RSSI)"
+        "signal": "עוצמת אות (RSSI)",
+        "relay": "הועבר דרך"
       },
       "tiles": {
         "battery": "סוללה",
@@ -1626,6 +1627,16 @@
       "message": "פרטים",
       "timestamp": "חותמת זמן",
       "logSource": "מקור התיעוד",
+      "battery": "סוללה",
+      "connection": "חיבור",
+      "cellular": "סלולר",
+      "mesh": "רשת מש",
+      "gateway": "שער",
+      "relay": "הועבר דרך",
+      "signal": "עוצמת אות (RSSI)",
+      "hops_one": "קפיצה {{count}}",
+      "hops_other": "{{count}} קפיצות",
+      "direct": "ישיר",
       "errorCard": "לא ניתן לטעון את נתוני התיעוד.",
       "errorDescription": "המידע אודות התיעוד אינו זמין כרגע. אנא נסה שוב מאוחר יותר."
     },

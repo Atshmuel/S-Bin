@@ -963,7 +963,8 @@
       },
       "connectedTable": {
         "name": "Bin",
-        "signal": "Signal (RSSI)"
+        "signal": "Signal (RSSI)",
+        "relay": "Relayed by"
       },
       "tiles": {
         "battery": "Battery",
@@ -1603,6 +1604,16 @@
       "message": "Details",
       "timestamp": "Timestamp",
       "logSource": "Log Source",
+      "battery": "Battery",
+      "connection": "Connection",
+      "cellular": "Cellular",
+      "mesh": "Mesh",
+      "gateway": "Gateway",
+      "relay": "Relayed by",
+      "signal": "Signal (RSSI)",
+      "hops_one": "{{count}} hop",
+      "hops_other": "{{count}} hops",
+      "direct": "Direct",
       "errorCard": "Could not load log data.",
       "errorDescription": "The log information is currently unavailable. Please try again later."
     },

@@ -28,7 +28,7 @@ import { Search, X } from "lucide-react"
 import { useAppSide } from "@/hooks/useAppSide"
 import { useTranslation } from "react-i18next"
 
-export default function DataTable({ data = [], columns, title, maxLength = 10, isLoading = true, error = null, sortingBy, ActionButton = null, initialSearch = "", manualPagination = false, pageCount, pagination, onPaginationChange, manualFiltering = false, onSearchChange, manualSorting = false, onSortChange }) {
+export default function DataTable({ data = [], columns, title, maxLength = 10, isLoading = true, error = null, sortingBy, ActionButton = null, initialSearch = "", manualPagination = false, pageCount, pagination, onPaginationChange, manualFiltering = false, onSearchChange, manualSorting = false, onSortChange, onRowClick = null }) {
     const { t } = useTranslation()
 
     const { isRight } = useAppSide()
@@ -174,8 +174,14 @@ export default function DataTable({ data = [], columns, title, maxLength = 10, i
                             table.getRowModel().rows.map(row => (
 
                                 <TableRow
-
-                                    key={row.id} className={'h-12'}>
+                                    key={row.id}
+                                    className={onRowClick ? 'h-12 cursor-pointer' : 'h-12'}
+                                    onClick={onRowClick ? (event) => {
+                                        // A link or button in the row does its own thing; so does a text selection.
+                                        if (event.target.closest('a, button, input, select, textarea, [role="button"]')) return
+                                        if (window.getSelection()?.toString()) return
+                                        onRowClick(row.original)
+                                    } : undefined}>
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell
                                             style={{ width: cell.column.getSize() }}

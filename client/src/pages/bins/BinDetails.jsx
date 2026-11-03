@@ -17,7 +17,7 @@ import { getVariant, isGateway } from "@/utils/binHelpers"
 import { useBin } from "@/hooks/bins/useBin"
 import { useLogs } from "@/hooks/bins/binLogs/useBinLogs"
 import { BIN_LOGS_PAGE_SIZE } from "@/utils/constants"
-import { Link, useParams, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { LinkIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import BinInsights from "@/components/bins/analytics/BinInsights"
@@ -33,6 +33,7 @@ function BinDetails() {
     const { isRight } = useAppSide()
     const { t } = useTranslation()
     const { id } = useParams()
+    const navigate = useNavigate()
 
     const { bin, isLoadingBins, binsError } = useBin(id)
     // The bin's logs, a page at a time, sorted and searched (by fill level)
@@ -61,9 +62,11 @@ function BinDetails() {
             header: t("pages.binDetails.logsTable.columns.createdAt"),
             accessorKey: 'createdAt',
             meta: { sortKey: 'createdAt' },
-            cell: ({ row }) => {
-                return format(new Date(row.original.createdAt), 'yyyy-MM-dd HH:mm')
-            },
+            cell: ({ row }) => (
+                <Link className="flex gap-2 items-center whitespace-nowrap" to={`/bins/logs/${row.original._id}`}>
+                    <LinkIcon size={14} /> <span>{format(new Date(row.original.createdAt), 'yyyy-MM-dd HH:mm')}</span>
+                </Link>
+            ),
         },
         {
             header: t("pages.binDetails.logsTable.columns.severity"),
@@ -137,20 +140,6 @@ function BinDetails() {
                     t(`sources.${source}`)
                 );
             }
-        },
-        {
-            header: t("pages.binDetails.logsTable.columns.viewLog"),
-            accessorKey: '_id',
-            cell: ({ row }) => {
-                const id = row.original._id;
-                return (
-                    <Link className="flex gap-2 items-center "
-                        to={`/bins/logs/${id}`}
-                    >
-                        <LinkIcon size={14} /> <span>{t("pages.binDetails.logsTable.columns.viewLog")}</span>
-                    </Link>
-                );
-            },
         }
 
     ].filter(column => !gateway || !['newLevel', 'weight'].includes(column.accessorKey))
@@ -187,6 +176,18 @@ function BinDetails() {
             id: 'hops',
             accessorFn: (leaf) => leaf.status?.connection?.hops ?? null,
             cell: ({ row }) => row.original.status?.connection?.hops ?? '-',
+        },
+        {
+            header: t("pages.binDetails.connectedTable.relay"),
+            id: 'relay',
+            accessorFn: (leaf) => leaf.relay?.binName ?? '',
+            cell: ({ row }) => row.original.relay && row.original.relay._id !== bin?._id
+                ? (
+                    <Link className="text-primary underline-offset-4 hover:underline" to={`/bins/${row.original.relay._id}`}>
+                        {row.original.relay.binName}
+                    </Link>
+                )
+                : '-',
         },
     ]
 
@@ -315,7 +316,7 @@ function BinDetails() {
                                             <CardContent>
                                                 <DataTable columns={logsColumns} isLoading={isLoadingLogs} data={allLogs ?? []} maxLength={BIN_LOGS_PAGE_SIZE} error={logsError}
                                                     manualPagination pageCount={logsPageCount} pagination={logsPagination} onPaginationChange={setLogsPagination}
-                                                    manualFiltering onSearchChange={handleLogsSearch} manualSorting onSortChange={handleLogsSort} />
+                                                    manualFiltering onSearchChange={handleLogsSearch} manualSorting onSortChange={handleLogsSort} onRowClick={(log) => navigate(`/bins/logs/${log._id}`)} />
                                             </CardContent>
                                         </Card>
                                     )}

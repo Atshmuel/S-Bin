@@ -4,7 +4,7 @@ import HealthBadge from "@/components/bins/HealthBadge";
 import Battery from "@/components/bins/Battary";
 import { format } from "date-fns";
 import { getVariant } from "@/utils/binHelpers";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { LinkIcon, RadioTower } from "lucide-react";
 import { useLogs } from "@/hooks/bins/binLogs/useBinLogs";
 import OrganizationSelect from "@/components/OrganizationSelect";
@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 function AllLogs() {
     const { t } = useTranslation();
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams()
     const { selectedOrgId } = useSelectedOrg()
 
@@ -81,9 +82,11 @@ function AllLogs() {
             header: t('pages.logList.columns.createAt'),
             accessorKey: 'Created At',
             meta: { sortKey: 'createdAt' },
-            cell: ({ row }) => {
-                return format(new Date(row.original.createdAt), 'yyyy-MM-dd HH:mm')
-            },
+            cell: ({ row }) => (
+                <Link className="flex gap-2 items-center whitespace-nowrap" to={`/bins/logs/${row.original._id}`}>
+                    <LinkIcon size={14} /> <span>{format(new Date(row.original.createdAt), 'yyyy-MM-dd HH:mm:ss')}</span>
+                </Link>
+            ),
             enableSorting: true,
         },
         {
@@ -156,26 +159,12 @@ function AllLogs() {
             cell: ({ row }) => {
                 return t(`pages.logList.${row.original.source.toLowerCase()}`);
             }
-        },
-        {
-            header: t('pages.logList.columns.viewLog'),
-            id: 'View log',
-            cell: ({ row }) => {
-                const id = row.original._id;
-                return (
-                    <Link className="flex gap-2 items-center "
-                        to={`/bins/logs/${id}`}
-                    >
-                        <LinkIcon size={14} /> <span>{t('pages.logList.columns.viewLog')}</span>
-                    </Link>
-                );
-            },
         }
     ]
     return (
         <div className="flex flex-col gap-4">
             <OrganizationSelect />
-            <DataTable columns={columns} data={allLogs ?? []} isLoading={isLoadingLogs} error={logsError} title={t('pages.logList.title')} manualPagination={true} pageCount={pageCount} pagination={pagination} onPaginationChange={setPagination} manualFiltering={true} onSearchChange={handleSearchChange} manualSorting={true} onSortChange={handleSortChange} />
+            <DataTable columns={columns} data={allLogs ?? []} isLoading={isLoadingLogs} error={logsError} title={t('pages.logList.title')} manualPagination={true} pageCount={pageCount} pagination={pagination} onPaginationChange={setPagination} manualFiltering={true} onSearchChange={handleSearchChange} manualSorting={true} onSortChange={handleSortChange} onRowClick={(log) => navigate(`/bins/logs/${log._id}`)} />
         </div >
     )
 }
