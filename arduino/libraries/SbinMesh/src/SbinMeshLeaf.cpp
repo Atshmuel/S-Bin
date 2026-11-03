@@ -29,18 +29,24 @@ constexpr uint64_t MICROSECONDS_PER_SECOND = 1000000ULL;
 // the first winter-time slot.
 constexpr uint32_t COLD_JOIN_LISTEN_MS = 13UL * 60UL * 60UL * 1000UL + 30UL * 60UL * 1000UL;
 constexpr uint32_t COLD_JOIN_RETRY_SLEEP_SECONDS = 15UL * 60UL;
+// Added to a known schedule period for a cold join's listening: an hour for a clock
+// change and half an hour for the gateway's lateness.
+constexpr uint32_t COLD_JOIN_PERIOD_MARGIN_SECONDS = 90UL * 60UL;
 // A learned slot period outside this range is treated as a bad schedule.
 constexpr uint32_t MIN_SCHEDULE_PERIOD_SECONDS = 60;
 constexpr uint32_t MAX_SCHEDULE_PERIOD_SECONDS = 24UL * 60UL * 60UL;
 // Never schedule a wake closer than this; it means the schedule is stale.
 constexpr uint32_t MIN_SLEEP_TO_SLOT_SECONDS = 15;
 // After this many missed beacons in a row the leaf stops following its slot
-// pattern and listens until it hears the gateway again (a cold join). One:
-// a miss usually means the schedule changed (an interval change reaches the
-// gateway only after its next report, so leaves keep the old pattern for a
-// cycle) or the gateway was down, and guessing the old pattern again only
-// misses again; drift alone is covered by the guard.
-constexpr uint8_t MAX_MISSED_CYCLES = 1;
+// pattern and listens until it hears the gateway again (a cold join). A miss
+// can mean the schedule changed (an interval change reaches the gateway only
+// after its next report, so leaves keep the old pattern for a cycle) or the
+// gateway was down, which guessing the pattern again only misses again; but it
+// is as often the drift moving past the guard, and the cold join that follows
+// listens for a whole period (2026-11-03: 11.8 hours, about 1.2 Ah on a real
+// leaf). So the pattern is tried once more, with a wider guard: that costs a
+// guard's listening, not a period's.
+constexpr uint8_t MAX_MISSED_CYCLES = 2;
 // The guard is how much before the slot the leaf wakes and how long after the
 // slot (plus the gateway's window) it keeps listening. Clock error grows with
 // all the sleep since the last beacon, so the guard is a fraction of it: the
@@ -348,7 +354,7 @@ bool useBeacon(const BeaconPacket& beacon, const ReceivedFrame& frame, bool atSc
     // cold join the clock may be anywhere), by as much as the guard covers.
     const int64_t beaconNowMs = static_cast<int64_t>(beacon.epochMs) + (millis() - frame.receivedAtMs);
     const int64_t toleranceMs =
-        static_cast<int64_t>(guardSeconds + meshWindowSeconds + LISTEN_SLACK_SECONDS) * 1000;
+        beaconToleranceMs(guardSeconds, meshWindowSeconds, LISTEN_SLACK_SECONDS, sleptSinceSyncMs);
     if (!beaconTimeIsFresh(atScheduledSlot && clockValid(), beaconNowMs, epochMsNow(), toleranceMs)) {
         Serial.printf("⚠️ A beacon's time is %+lld s from this clock; ignored.\n",
                       static_cast<long long>((beaconNowMs - epochMsNow()) / 1000));
@@ -937,12 +943,17 @@ void runLeafCycle(const LeafConfig& leafConfig) {
                          static_cast<int64_t>(2 * guardSeconds + OFF_SLOT_MARGIN_SECONDS)) {
         sleepUntilNextSlot();
     }
-    uint32_t listenMs = COLD_JOIN_LISTEN_MS;
+    // A leaf that knows its schedule's period listens for that period (and the hour a
+    // clock change adds, and slack), not for the longest one there is.
+    const uint32_t coldJoinListenMs = schedulePeriodSeconds > 0
+        ? min(COLD_JOIN_LISTEN_MS, (schedulePeriodSeconds + COLD_JOIN_PERIOD_MARGIN_SECONDS) * 1000UL)
+        : COLD_JOIN_LISTEN_MS;
+    uint32_t listenMs = coldJoinListenMs;
     if (!coldJoin) {
         const int64_t listenUntilMs = (static_cast<int64_t>(nextWakeEpoch) + guardSeconds +
                                        meshWindowSeconds + LISTEN_SLACK_SECONDS) * 1000;
         listenMs = static_cast<uint32_t>(constrain(listenUntilMs - epochMsNow(), static_cast<int64_t>(1000),
-                                                   static_cast<int64_t>(COLD_JOIN_LISTEN_MS)));
+                                                   static_cast<int64_t>(coldJoinListenMs)));
     }
     Serial.printf("%s Listening up to %lu s for a gateway beacon.\n",
                   coldJoin ? "🔍 Cold join:" : "👂", static_cast<unsigned long>(listenMs / 1000));

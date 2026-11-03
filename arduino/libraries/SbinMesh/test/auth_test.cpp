@@ -335,6 +335,19 @@ static void testBeaconFreshness() {
     CHECK(!beaconTimeIsFresh(true, 1000000, 100000, 2000)); // a replayed beacon from the past
 }
 
+static void testBeaconTolerance() {
+    const int64_t twelveHoursMs = 12LL * 3600 * 1000;
+    CHECK(beaconToleranceMs(328, 10, 5, 0) == 343000);                       // right after a beacon
+    CHECK(beaconToleranceMs(328, 10, 5, twelveHoursMs) == 343000 + 648000);  // 1.5% of 12 hours
+    CHECK(beaconToleranceMs(328, 10, 5, -5) == 343000);
+    CHECK(beaconToleranceMs(328, 10, 5, 10 * twelveHoursMs) == 343000 + 1200000);  // capped
+    // The 2026-11-03 miss: a clock 420 s off was refused at 343 s and is taken now.
+    CHECK(!beaconTimeIsFresh(true, 420000, 0, 343000));
+    CHECK(beaconTimeIsFresh(true, 420000, 0, beaconToleranceMs(328, 10, 5, twelveHoursMs)));
+    // A beacon an hour old is still refused, after a day's sleep too.
+    CHECK(!beaconTimeIsFresh(true, 3600000, 0, beaconToleranceMs(328, 10, 5, 2 * twelveHoursMs)));
+}
+
 int main() {
     testHmacAndDerivation();
     testRoundTrips();
@@ -344,6 +357,7 @@ int main() {
     testKeyRotation();
     testNoKeyAndCounts();
     testBeaconFreshness();
+    testBeaconTolerance();
     printf("%d checks, %d failed\n", checks, failures);
     return failures == 0 ? 0 : 1;
 }

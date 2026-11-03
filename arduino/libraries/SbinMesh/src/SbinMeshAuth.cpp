@@ -307,4 +307,18 @@ bool beaconTimeIsFresh(bool clockValid, int64_t beaconEpochMs, int64_t nowEpochM
     return (difference < 0 ? -difference : difference) <= toleranceMs;
 }
 
+namespace {
+constexpr int64_t CLOCK_SWING_PPM = 15000;
+constexpr int64_t MAX_CLOCK_SWING_MS = 1200LL * 1000;
+}  // namespace
+
+int64_t beaconToleranceMs(uint32_t guardSeconds, uint32_t windowSeconds, uint32_t slackSeconds,
+                          int64_t sleptSinceSyncMs) {
+    int64_t swingMs = sleptSinceSyncMs > 0 ? sleptSinceSyncMs * CLOCK_SWING_PPM / 1000000 : 0;
+    if (swingMs > MAX_CLOCK_SWING_MS) {
+        swingMs = MAX_CLOCK_SWING_MS;
+    }
+    return static_cast<int64_t>(guardSeconds + windowSeconds + slackSeconds) * 1000 + swingMs;
+}
+
 }  // namespace sbinmesh

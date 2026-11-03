@@ -142,4 +142,13 @@ private:
 // join) there is nothing to compare with.
 bool beaconTimeIsFresh(bool clockValid, int64_t beaconEpochMs, int64_t nowEpochMs, int64_t toleranceMs);
 
+// How far a genuine beacon's time can be from a leaf's clock: the guard, the window and a
+// slack, plus what the clock may have strayed over the sleep since it was last set. The
+// sleep clock's drift moved by about 1% between two 12-hour cycles on the bench
+// (2026-11-03: the estimate was 9,700 ppm short, 420 s against a 343 s tolerance, and a
+// leaf awake at its slot refused the gateway's beacon and listened for 12 hours). The extra
+// is capped, so a replayed old beacon can set the clock wrong by that much at most.
+int64_t beaconToleranceMs(uint32_t guardSeconds, uint32_t windowSeconds, uint32_t slackSeconds,
+                          int64_t sleptSinceSyncMs);
+
 }  // namespace sbinmesh
