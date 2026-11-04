@@ -87,9 +87,11 @@ constexpr uint32_t LATE_COMMAND_MIN_SLOT_GAP_SECONDS = 3UL * 60UL * 60UL;
 // heard directly is the better path), and only from a relay not much weaker than the best.
 constexpr uint32_t RELAY_REQUEST_SCHEDULED_INTERVAL_MS = 2000;
 constexpr uint32_t RELAY_REQUEST_COLD_INTERVAL_MS = 5000;
-// The gateway's window opens a few seconds after the slot (the bench: 5-7 s); a leaf asks
-// for a relay only after that.
-constexpr int64_t RELAY_REQUEST_AFTER_SLOT_MS = 8000;
+// The gateway's window opens a few seconds after the slot (the bench: 5-7 s). A leaf's
+// clock can be minutes off after a sleep (2026-11-04: 142 s late, its first request came
+// after the 20 s window closed), so it asks from the moment it wakes, every 5 s; from the
+// slot by its own clock on, every 2 s. A relay answers only once it has heard a beacon.
+constexpr int64_t RELAY_REQUEST_FASTER_AFTER_SLOT_MS = 8000;
 constexpr uint32_t RELAYED_BEACON_HOLD_MS = 2000;
 constexpr int8_t RELAY_RSSI_TOLERANCE_DB = 6;
 // How far apart a leaf's slots must be for it to relay: as for a late command.
@@ -399,11 +401,11 @@ bool waitForBeacon(uint32_t listenMs, bool atScheduledSlot) {
     int8_t bestRelayedRssi = -127;
     bool asked = false;
     uint32_t askedAtMs = 0;
-    const uint32_t askEveryMs = atScheduledSlot ? RELAY_REQUEST_SCHEDULED_INTERVAL_MS : RELAY_REQUEST_COLD_INTERVAL_MS;
     while (millis() - startedAt < listenMs) {
-        const bool slotStarted = !atScheduledSlot ||
-            (clockValid() && epochMsNow() >= static_cast<int64_t>(nextWakeEpoch) * 1000 + RELAY_REQUEST_AFTER_SLOT_MS);
-        if (slotStarted && (!asked || millis() - askedAtMs >= askEveryMs)) {
+        const bool slotStarted = atScheduledSlot && clockValid() &&
+            epochMsNow() >= static_cast<int64_t>(nextWakeEpoch) * 1000 + RELAY_REQUEST_FASTER_AFTER_SLOT_MS;
+        const uint32_t askEveryMs = slotStarted ? RELAY_REQUEST_SCHEDULED_INTERVAL_MS : RELAY_REQUEST_COLD_INTERVAL_MS;
+        if (!asked || millis() - askedAtMs >= askEveryMs) {
             RelayRequestPacket request = {};
             radio.initHeader(request.header, PACKET_RELAY_REQUEST);
             radio.broadcast(&request, sizeof(request));
@@ -830,6 +832,9 @@ JoinOutcome joinMesh(const JoinConfig& joinConfig, LeafKeys& keys, uint32_t list
     }
     joiningAuth.useJoining(radio.macAddress());
     radio.setAuth(&joiningAuth);
+    if (joinConfig.ignoreSender != nullptr) {
+        radio.ignoreSender(joinConfig.ignoreSender);
+    }
     Serial.printf("🔑 No mesh keys: listening up to %lu s for a gateway window to join.\n",
                   static_cast<unsigned long>(listenMs / 1000));
 

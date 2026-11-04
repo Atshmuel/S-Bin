@@ -203,6 +203,11 @@ void joinTheMesh(sbinmesh::LeafKeys& keys) {
                                     "This leaf has no mesh keys and no join code (add the device again from the app)");
     }
     sbinmesh::JoinConfig join = {ownerId.c_str(), joinCode.c_str()};
+#ifdef SBIN_TEST_BLIND_TO_MAC
+    // Bench test of a JOIN through a relay: the gateway is out of range for the JOIN too.
+    static const uint8_t joinBlindToMac[sbinmesh::MAC_LENGTH] = SBIN_TEST_BLIND_TO_MAC;
+    join.ignoreSender = joinBlindToMac;
+#endif
     switch (sbinmesh::joinMesh(join, keys, JOIN_LISTEN_MS)) {
         case sbinmesh::JoinOutcome::JOINED:
             forgetJoinCode();

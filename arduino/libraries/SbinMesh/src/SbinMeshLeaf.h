@@ -74,6 +74,9 @@ struct LeafConfig {
 struct JoinConfig {
     const char* organizationId;
     const char* joinCode;
+    // Bench only: frames from this MAC are dropped (as LeafConfig::ignoreSender), so a JOIN
+    // can be tested through a relay with the gateway in range.
+    const uint8_t* ignoreSender = nullptr;
 };
 
 enum class JoinOutcome : uint8_t {
