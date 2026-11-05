@@ -230,7 +230,8 @@
       "title": "כללי",
       "items": {
         "dashboard": "לוח בקרה",
-        "analytics": "אנליטיקות"
+        "analytics": "אנליטיקות",
+        "firmware": "קושחה"
       }
     }
   },
@@ -1344,6 +1345,35 @@
         "send": "שליחת בקשה להדגמה",
         "subject": "בקשה להדגמת sBin"
       }
+    },
+    "firmware": {
+      "title": "גרסאות קושחה",
+      "root": "קושחה",
+      "organizationsDescription": "מכשירי כל ארגון וכמה מהם מריצים קושחה ישנה מהחדשה ביותר בשימוש ({{newest}}). בחרו ארגון.",
+      "versionsDescription": "גרסאות הקושחה בשימוש וכמה מכשירים מריצים כל אחת. בחרו גרסה כדי לראות את המכשירים שלה.",
+      "devicesDescription": "המכשירים שמריצים את {{version}}.",
+      "devicesUnknownDescription": "המכשירים שעוד לא דיווחו על גרסת קושחה.",
+      "noVersions": "עוד לא דווחה גרסת קושחה.",
+      "none": "אין מכשירים.",
+      "unknown": "אין גרסה עדיין",
+      "newest": "החדשה ביותר",
+      "behind": "מפגר",
+      "current": "מעודכן",
+      "columns": {
+        "organization": "ארגון",
+        "devices": "מכשירים",
+        "behind": "מפגרים",
+        "version": "גרסה",
+        "status": "מצב",
+        "device": "מכשיר",
+        "type": "סוג",
+        "lastReport": "דיווח אחרון"
+      },
+      "kind": {
+        "bin": "פח",
+        "gateway": "שער"
+      },
+      "never": "אף פעם"
     }
   },
   "confirmations": {
@@ -1951,5 +1981,6 @@
     "createTitle": "יצירת הערה חדשה",
     "createDescription": "הזן את פרטי ההערה למטה.",
     "placeholder": "כתוב את ההערה כאן..."
-  }
+  },
+  "firmware": "קושחה"
 }

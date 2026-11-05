@@ -13,6 +13,7 @@ import { Toaster } from './components/ui/sonner';
 import Login from '../src/pages/auth/Login'
 import Dashboard from './pages/dashboard/Dashboard';
 import Analytics from './pages/reports/Analytics';
+import Firmware from './pages/firmware/Firmware';
 import BinsList from './pages/bins/BinsList';
 import BinMap from './pages/bins/BinMap';
 import BinDetails from './pages/bins/BinDetails';
@@ -82,6 +83,7 @@ function App() {
                 <Route index element={<HomeRedirect />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="analytics" element={<Analytics />} />
+                <Route path="firmware" element={<ProtectedRoute roles={['admin', 'owner']}><Firmware /></ProtectedRoute>} />
 
                 <Route path='bins'>
                   <Route path="" element={<BinsList />} />

@@ -133,7 +133,8 @@
       "title": "General",
       "items": {
         "dashboard": "Dashboard",
-        "analytics": "Analytics"
+        "analytics": "Analytics",
+        "firmware": "Firmware"
       }
     }
   },
@@ -1321,6 +1322,35 @@
         "send": "Request a demo",
         "subject": "sBin Demo Request"
       }
+    },
+    "firmware": {
+      "title": "Firmware versions",
+      "root": "Firmware",
+      "organizationsDescription": "Each organization's devices and how many run an older firmware than the newest in use ({{newest}}). Pick an organization.",
+      "versionsDescription": "The firmware versions in use and how many devices run each. Pick a version to see its devices.",
+      "devicesDescription": "The devices that run {{version}}.",
+      "devicesUnknownDescription": "The devices that have not reported a firmware version yet.",
+      "noVersions": "No firmware version reported yet.",
+      "none": "No devices.",
+      "unknown": "No version yet",
+      "newest": "Newest",
+      "behind": "Behind",
+      "current": "Up to date",
+      "columns": {
+        "organization": "Organization",
+        "devices": "Devices",
+        "behind": "Behind",
+        "version": "Version",
+        "status": "Status",
+        "device": "Device",
+        "type": "Type",
+        "lastReport": "Last report"
+      },
+      "kind": {
+        "bin": "Bin",
+        "gateway": "Gateway"
+      },
+      "never": "Never"
     }
   },
   "confirmations": {
@@ -1929,5 +1959,6 @@
     "createDescription": "Write your note details below.",
     "placeholder": "Type your note here..."
   },
-  "technician": "Technician"
+  "technician": "Technician",
+  "firmware": "Firmware"
 }

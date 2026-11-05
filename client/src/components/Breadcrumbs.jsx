@@ -43,13 +43,13 @@ export function Breakcrumbs() {
                     </DropdownMenu>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator isRight={isRight} className="hidden md:block" />
-                <BreadcrumbItem key={crumbs.length - 1} className={"hidden md:block"}>
+                <BreadcrumbItem key={crumbs.length - 1}>
                     <BreadcrumbLink asChild={true}>
                         <NavLink className={'capitalize'} to={penultimateCrumb.path || ''}>{penultimateCrumb.label}</NavLink>
                     </BreadcrumbLink>
                 </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem key={crumbs.length} className={"hidden md:flex"}>
+                <BreadcrumbSeparator isRight={isRight} />
+                <BreadcrumbItem key={crumbs.length} className={"flex"}>
                     <BreadcrumbPage >
                         <NavLink className={'capitalize'} to={lastCrumb.path || ''}>{lastCrumb.label}</NavLink>
                     </BreadcrumbPage>
@@ -65,7 +65,7 @@ export function Breakcrumbs() {
             {
                 crumbs.map((crumb, index) => (
                     <React.Fragment key={index}>
-                        <BreadcrumbItem className={"hidden md:flex"}>
+                        <BreadcrumbItem className={index >= crumbs.length - 2 ? "flex" : "hidden md:flex"}>
                             <BreadcrumbLink asChild={true}>
                                 {index === crumbs.length - 1 ?
                                     <BreadcrumbPage className={'capitalize'}>{crumb.label}</BreadcrumbPage> :
@@ -73,7 +73,7 @@ export function Breakcrumbs() {
                                 }
                             </BreadcrumbLink>
                         </BreadcrumbItem>
-                        {index < crumbs.length - 1 && <BreadcrumbSeparator isRight={isRight} className="hidden md:block" />}
+                        {index < crumbs.length - 1 && <BreadcrumbSeparator isRight={isRight} className={index >= crumbs.length - 2 ? "" : "hidden md:block"} />}
                     </React.Fragment>
                 ))
             }

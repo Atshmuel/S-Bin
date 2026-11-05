@@ -11,6 +11,7 @@ const routeKeyMap = {
     profile: "profile",
     bins: "bins",
     analytics: "analytics",
+    firmware: "firmware",
     statistics: "statistics",
     support: "support",
     account: "account",

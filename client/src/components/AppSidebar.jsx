@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   ChartSplineIcon,
+  CpuIcon,
   LayoutDashboardIcon,
   RouteIcon,
   Trash2Icon,
@@ -106,6 +107,13 @@ export function AppSidebar({
         name: t("sidebar.general.items.analytics"),
         url: "/analytics",
         icon: ChartSplineIcon,
+      },
+      // Which firmware the devices run: owners and admins, who run the updates.
+      {
+        name: t("sidebar.general.items.firmware"),
+        url: "/firmware",
+        icon: CpuIcon,
+        isAdminAndAbove: true,
       },
     ],
   }

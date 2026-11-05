@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
-import { binLogModel, binModel, deviceDiagnosticModel, routeModel, userModel } from '../models/models.js'
+import { binLogModel, binModel, deviceDiagnosticModel, organizationModel, routeModel, userModel } from '../models/models.js'
+import { UNKNOWN_VERSION, VERSION_PATTERN, compareVersions, newestVersion, organizationsLevel, versionsLevel } from '../../utils/firmware.js'
 import { READINGS_FILTER, WITH_PROBLEMS_FILTER, readingsByBin } from '../service/readingsService.js'
 import { describeFaults } from '../../utils/faults.js'
 import { BINS_ONLY_FILTER, receivedAtOf, scopeToOrganization } from '../../utils/helpers.js'
@@ -520,7 +521,60 @@ async function routesOverview(user, { days, timeZone }) {
     return overview;
 }
 
+const httpError = (status, message) => Object.assign(new Error(message), { status });
+
+// Firmware versions, one level per request: an owner's organizations, an
+// organization's versions (an admin starts here, with their own), the devices
+// on one version (?organization=, ?version=, "unknown" for none reported).
+async function firmwareOverview(user, { query }) {
+    const isOwner = user.role === ROLES.OWNER;
+    if (!isOwner && user.role !== ROLES.ADMIN) throw httpError(403, 'Only owners and admins see the firmware versions.');
+    const organizationId = isOwner ? query.organization : String(user.org);
+    if (organizationId && !mongoose.Types.ObjectId.isValid(organizationId)) throw httpError(400, `Invalid organization: '${organizationId}'`);
+    const { version } = query;
+    if (version && version !== UNKNOWN_VERSION && !VERSION_PATTERN.test(version)) throw httpError(400, `Invalid version: '${version}'`);
+
+    const groups = await binModel.aggregate([
+        { $match: scopeToOrganization({}, user) },
+        { $group: { _id: { organization: '$ownerId', version: '$status.firmwareVersion' }, count: { $sum: 1 } } },
+    ]);
+    const rows = groups.map(group => ({ organization: String(group._id.organization), version: group._id.version ?? null, count: group.count }));
+    const newest = newestVersion(rows);
+
+    if (!organizationId) {
+        const levels = organizationsLevel(rows, newest);
+        const organizations = await organizationModel.find({ _id: { $in: levels.map(level => level.organization) } }, { name: 1 }).lean();
+        const names = new Map(organizations.map(org => [String(org._id), org.name]));
+        return {
+            level: 'organizations',
+            newest,
+            organizations: levels.map(level => ({ _id: level.organization, name: names.get(level.organization) ?? null, devices: level.devices, behind: level.behind }))
+                .sort((a, b) => b.behind - a.behind || String(a.name).localeCompare(String(b.name))),
+        };
+    }
+
+    const organization = await organizationModel.findById(organizationId, { name: 1 }).lean();
+    if (!organization) throw httpError(404, 'Organization not found.');
+    const organizationRef = { _id: organizationId, name: organization.name };
+    const organizationRows = rows.filter(row => row.organization === organizationId);
+    if (!version) return { level: 'versions', newest, organization: organizationRef, versions: versionsLevel(organizationRows, newest) };
+
+    const devices = await binModel.find(
+        scopeToOrganization({ ownerId: new mongoose.Types.ObjectId(organizationId), 'status.firmwareVersion': version === UNKNOWN_VERSION ? null : version }, user),
+        { binName: 1, kind: 1, 'status.updatedAt': 1 },
+    ).sort({ binName: 1 }).lean();
+    return {
+        level: 'devices',
+        newest,
+        organization: organizationRef,
+        version,
+        behind: version !== UNKNOWN_VERSION && newest !== null && compareVersions(version, newest) < 0,
+        devices: devices.map(device => ({ _id: device._id, name: device.binName, kind: device.kind ?? 'bin', lastReportAt: device.status?.updatedAt ?? null })),
+    };
+}
+
 const OVERVIEW_SECTIONS = {
+    firmware: firmwareOverview,
     'full-soon': fullSoon,
     'fullness-distribution': fullnessDistribution,
     collections: collectionsOverview,
@@ -540,6 +594,7 @@ export async function getOverviewSection(req, res) {
         res.status(200).json(await section(req.user, {
             days: parseRangeDays(req.query.range),
             timeZone: requestTimeZone(req),
+            query: req.query,
         }));
     } catch (error) {
         res.status(error?.status ?? 500).json({ message: error?.message || 'Failed to load the analytics.' });

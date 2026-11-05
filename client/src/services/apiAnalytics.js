@@ -9,12 +9,13 @@ export function getBinAnalytics({ binId, section, range }) {
 
 // The viewer's time zone sets the day boundaries of the page's charts; an
 // owner's picked organization narrows the section to it.
-export function getOverviewSection({ section, range, orgId }) {
+export function getOverviewSection({ section, range, orgId, params: extra }) {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const params = new URLSearchParams({
         ...(range ? { range: String(range) } : {}),
         tz: timeZone,
         ...(orgId ? { org: orgId } : {}),
+        ...extra,
     });
     return request(`${OVERVIEW_EP}/${section}?${params}`);
 }
