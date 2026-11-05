@@ -1615,6 +1615,10 @@
       "hops_one": "{{count}} hop",
       "hops_other": "{{count}} hops",
       "direct": "Direct",
+      "received": "Received by the server",
+      "afterTaken": "{{time}} after the reading",
+      "diagnostics": "Device diagnostics",
+      "diagnosticsDescription": "What the device reported about itself in this report.",
       "errorCard": "Could not load log data.",
       "errorDescription": "The log information is currently unavailable. Please try again later."
     },

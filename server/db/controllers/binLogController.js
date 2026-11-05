@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import { appendFilter, healthRank, listSortStages, scopeToOrganization } from '../../utils/helpers.js';
-import { binLogModel, binModel } from '../models/models.js'
+import { appendFilter, healthRank, listSortStages, receivedAtOf, scopeToOrganization } from '../../utils/helpers.js';
+import { binLogModel, binModel, deviceDiagnosticModel } from '../models/models.js'
 import { verifyBinOwner } from '../service/sharedService.js';
 import { DEFAULT_PAGE_SIZE, ROLES } from "../../utils/constants.js";
 
@@ -66,6 +66,14 @@ export async function getBinLog(req, res) {
         if (withBin && log.bin) {
             const namesOf = await connectionNames([body], () => log.bin.ownerId);
             Object.assign(body, namesOf(body));
+        }
+        // When it reached the server, and, for owners only (as the bin's own
+        // diagnostics), what the device said about itself in that report: null
+        // for a log without, or past, its diagnostics.
+        body.receivedAt = receivedAtOf(log._id);
+        if (role === ROLES.OWNER) {
+            const stored = await deviceDiagnosticModel.findOne({ logId: log._id }, { diagnostics: 1 }).lean();
+            body.diagnostics = stored?.diagnostics ?? null;
         }
         res.status(201).json({ log: body })
     } catch (error) {

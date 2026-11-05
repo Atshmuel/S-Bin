@@ -74,6 +74,13 @@ export function appendFilter(baseQuery, condition, field, value) {
     return condition ? { ...baseQuery, [field]: value } : baseQuery
 }
 
+// When the server stored a document: the time inside its _id. A log's own
+// createdAt is when the reading was taken, which a relayed or queued reading
+// can have long before it arrived.
+export function receivedAtOf(id) {
+    return new mongoose.Types.ObjectId(id).getTimestamp()
+}
+
 // A health or severity as a number, worst highest, so sorting by it orders
 // by how bad it is rather than alphabetically.
 export function healthRank(field) {

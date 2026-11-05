@@ -1638,6 +1638,10 @@
       "hops_one": "קפיצה {{count}}",
       "hops_other": "{{count}} קפיצות",
       "direct": "ישיר",
+      "received": "התקבל בשרת",
+      "afterTaken": "{{time}} אחרי המדידה",
+      "diagnostics": "אבחון המכשיר",
+      "diagnosticsDescription": "מה שהמכשיר דיווח על עצמו בדיווח הזה.",
       "errorCard": "לא ניתן לטעון את נתוני התיעוד.",
       "errorDescription": "המידע אודות התיעוד אינו זמין כרגע. אנא נסה שוב מאוחר יותר."
     },

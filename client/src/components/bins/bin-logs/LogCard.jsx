@@ -11,6 +11,9 @@ import { formatSleepDuration, formatDate } from "@/utils/helpers"
 import { isGateway } from "@/utils/binHelpers"
 import { useFaultText } from "@/hooks/useFaultText"
 
+// A log reaching the server later than this after its reading shows when it arrived.
+const LATE_RECEIVED_SECONDS = 60
+
 function LogCard({ log, isLoading = true, ...props }) {
     const { t } = useTranslation()
     const faultText = useFaultText()
@@ -18,6 +21,7 @@ function LogCard({ log, isLoading = true, ...props }) {
     const { isRight } = useAppSide()
     const isInfo = log?.severity === "info"
     const gateway = isGateway(log?.bin)
+    const delaySeconds = log?.receivedAt ? Math.round((new Date(log.receivedAt) - new Date(log.createdAt)) / 1000) : 0
     const iconColor = isInfo ? 'oklch(0.723 0.219 149.579)' : 'oklch(0.577 0.245 27.325)'
 
     return (
@@ -82,6 +86,19 @@ function LogCard({ log, isLoading = true, ...props }) {
                                     {formatDate(log.createdAt, isRight, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                                 </span>
                             </div>
+
+                            {/* A reading can wait (a leaf's, queued or relayed) before it reaches the server. */}
+                            {delaySeconds >= LATE_RECEIVED_SECONDS && (
+                                <div className="flex justify-between">
+                                    <span className="font-medium flex items-center gap-2">
+                                        <CalendarClock size={16} /> {t("components.logCard.received")}:
+                                    </span>
+                                    <span>
+                                        {formatDate(log.receivedAt, isRight, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                                        {" "}({t("components.logCard.afterTaken", { time: formatSleepDuration(delaySeconds, t) })})
+                                    </span>
+                                </div>
+                            )}
 
                             <div className="flex justify-between">
                                 <span className="font-medium flex items-center gap-2">

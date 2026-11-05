@@ -1,5 +1,6 @@
 import BinCard from "@/components/bins/BinCard"
 import LogCard from "@/components/bins/bin-logs/LogCard"
+import LogDiagnostics from "@/components/bins/bin-logs/LogDiagnostics"
 import CustomMarker from "@/components/map/CustomMarker"
 import MapComponent from "@/components/map/MapComponent"
 import { Badge } from "@/components/ui/badge"
@@ -47,6 +48,7 @@ function BinLog() {
                 <BinCard className="flex-1 min-w-xs" bin={bin} actions={false} handleLocationClick={() => scrollToMap(toLatLng(bin.location.coordinates))} isLoading={isLoadingLog} />
                 <LogCard className="min-w-xs flex-1 h-fit" log={log} isLoading={isLoadingLog} />
             </div>
+            <LogDiagnostics diagnostics={log.diagnostics} />
             <div ref={mapContainerRef} className="rounded-2xl overflow-hidden h-[450px]">
                 <MapComponent zoom={14} center={toLatLng(bin.location.coordinates)} legend={true} >
                     <CustomMarker key={bin._id} icon={getDeviceRoleIcon(getDeviceRole(bin))} position={toLatLng(bin.location.coordinates)}
