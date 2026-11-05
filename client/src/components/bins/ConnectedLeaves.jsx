@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom"
+import LinkQuality from "./LinkQuality"
 import { useTranslation } from "react-i18next"
 import { Button } from "../ui/button"
 import { useAppSide } from "@/hooks/useAppSide"
@@ -17,7 +18,7 @@ function ConnectedLeaves({ leaves }) {
         <div key={leaf._id} className="flex justify-between items-center gap-2">
             <Link to={`/bins/${leaf._id}`} className="truncate"><Button className={"p-0 m-0 h-fit"} variant={'link'}>{leaf.binName}</Button></Link>
             <span className="text-xs text-muted-foreground text-end">
-                <span dir="ltr">{leaf.status?.connection?.rssi ?? '-'} dBm</span> · {t('components.binCard.hops')}: {leaf.status?.connection?.hops ?? '-'}
+                <span dir="ltr">{leaf.status?.connection?.rssi ?? '-'} dBm</span> <LinkQuality rssi={leaf.status?.connection?.rssi} /> · {t('components.binCard.hops')}: {leaf.status?.connection?.hops ?? '-'}
                 <br />
                 {formatDate(leaf.status?.updatedAt, isRight, { dateStyle: 'short', timeStyle: 'short' })}
             </span>

@@ -25,6 +25,7 @@ import { useAppSide } from "@/hooks/useAppSide"
 import { useTranslation } from "react-i18next"
 import DeviceInstructions from "@/components/bins/DeviceInstructions"
 import BinDiagnostics from "@/components/bins/BinDiagnostics"
+import LinkQuality from "@/components/bins/LinkQuality"
 import { useMe } from "@/hooks/users/auth/useMe"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useRemainingHeight } from "@/hooks/useRemainingHeight"
@@ -168,7 +169,7 @@ function BinDetails() {
             id: 'rssi',
             accessorFn: (leaf) => leaf.status?.connection?.rssi ?? null,
             cell: ({ row }) => row.original.status?.connection?.rssi != null
-                ? <span dir="ltr">{row.original.status.connection.rssi} dBm</span>
+                ? <span className="flex items-center gap-2"><span dir="ltr">{row.original.status.connection.rssi} dBm</span> <LinkQuality rssi={row.original.status.connection.rssi} /></span>
                 : '-',
         },
         {
@@ -234,7 +235,7 @@ function BinDetails() {
     }, [carouselApi, tabs, setTab])
     // The sections fill what is left of the screen and scroll inside it, so the
     // page itself does not scroll (nor stretch to the tallest section).
-    const [panelRef, panelHeight] = useRemainingHeight()
+    const [panelRef, panelHeight] = useRemainingHeight({ minViewportRatio: isMobile ? 0.85 : 0 })
     // The first move (the tab from the URL after a refresh) jumps without sliding.
     const hasPositionedRef = useRef(false)
     useEffect(() => {

@@ -4,6 +4,7 @@ import { he } from "date-fns/locale"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import EmptyCard from "@/components/EmptyCard"
+import LinkQuality from "@/components/bins/LinkQuality"
 
 // The AXP2101's power-off source register, bit by bit (as the firmware reads it).
 const PMU_OFF_BITS = Object.freeze(["pwronLow", "software", "pwronAlwaysLow", "vsysUnder", "vbusOver", "dcdcUnder", "dcdcOver", "dieOverTemp"])
@@ -101,7 +102,7 @@ export function DiagnosticsSections({ d }) {
                 [t(key("fields.scaleSpreadCounts")), d.scaleSpreadCounts?.toLocaleString(i18n.language)],
             ]} />
             <Section title={t(key("sections.mesh"))} rows={[
-                [t(key("fields.beaconRssi")), known(d.beaconRssi) ? <span dir="ltr">{d.beaconRssi} dBm</span> : null],
+                [t(key("fields.beaconRssi")), known(d.beaconRssi) ? <span className="flex items-center justify-end gap-2"><span dir="ltr">{d.beaconRssi} dBm</span> <LinkQuality rssi={d.beaconRssi} /></span> : null],
                 [t(key("fields.guardSeconds")), known(d.guardSeconds) ? `${d.guardSeconds} ${t(key("seconds"))}` : null],
                 [t(key("fields.missedCycles")), d.missedCycles],
                 [t(key("fields.residualPpm")), known(d.residualPpm) ? <Measure>{d.residualPpm.toLocaleString(i18n.language)} ppm</Measure> : null],

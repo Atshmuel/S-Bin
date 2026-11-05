@@ -10,6 +10,7 @@ import { useAppSide } from "@/hooks/useAppSide"
 import { formatSleepDuration, formatDate } from "@/utils/helpers"
 import { isGateway } from "@/utils/binHelpers"
 import { useFaultText } from "@/hooks/useFaultText"
+import LinkQuality from "@/components/bins/LinkQuality"
 
 // A log reaching the server later than this after its reading shows when it arrived.
 const LATE_RECEIVED_SECONDS = 60
@@ -136,7 +137,7 @@ function LogCard({ log, isLoading = true, ...props }) {
                                     {log.rssi != null && (
                                         <div className="flex justify-between">
                                             <span className="font-medium">{t("components.logCard.signal")}:</span>
-                                            <span dir="ltr">{log.rssi} dBm</span>
+                                            <span className="flex items-center gap-2"><span dir="ltr">{log.rssi} dBm</span> <LinkQuality rssi={log.rssi} /></span>
                                         </div>
                                     )}
                                 </>}

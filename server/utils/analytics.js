@@ -144,6 +144,27 @@ export function reportReliability(received, windowStart, windowEnd, intervalMinu
 }
 
 // The calendar day of an instant in a time zone, as YYYY-MM-DD.
+// What a report's timing shows, per report (reports oldest first, each
+// { at: when it was taken, receivedAt: when the server stored it, diagnostics? }):
+// how long it waited before it reached the server, and the timing figures the
+// device sent about itself (a leaf's wake guard and clock uncertainty, a
+// gateway's stage times), those only when `diagnostics` is given.
+const TIMING_DIAGNOSTICS = Object.freeze(["guardSeconds", "residualPpm", "missedCycles", "beaconRssi"]);
+const STAGE_DIAGNOSTICS = Object.freeze(["modemMs", "networkMs", "mqttMs", "slotWaitMs"]);
+
+export function timingPoints(reports) {
+    return reports.map(({ at, receivedAt, diagnostics }) => {
+        const point = { at, lagSeconds: Math.max(0, Math.round((receivedAt - at) / 1000)) };
+        for (const field of TIMING_DIAGNOSTICS) {
+            if (Number.isFinite(diagnostics?.[field])) point[field] = diagnostics[field];
+        }
+        for (const field of STAGE_DIAGNOSTICS) {
+            if (Number.isFinite(diagnostics?.stages?.[field])) point[field] = diagnostics.stages[field];
+        }
+        return point;
+    });
+}
+
 export function dayKey(date, timeZone) {
     return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })
         .format(date);

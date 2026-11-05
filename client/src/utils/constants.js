@@ -160,3 +160,8 @@ export const APP_URL = import.meta.env.VITE_APP_URL || "http://localhost:5173"
 
 // Where "Get a demo" requests on the landing page are mailed. Replace with the real address.
 export const DEMO_EMAIL = "demo@sbin.example"
+
+// A mesh link's signal (RSSI, dBm): good from here up, weak below the lower one
+// (the server opens its weak-link issue at the same -90).
+export const MESH_RSSI_GOOD = -75
+export const MESH_RSSI_WEAK = -90

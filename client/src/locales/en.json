@@ -1037,6 +1037,20 @@
         "connection": {
           "title": "Mesh signal",
           "description": "Signal strength (RSSI) and hops to the gateway, per report."
+        },
+        "timing": {
+          "title": "Time to reach the server",
+          "description": "How long each report took to arrive; a leaf's reading waits for its gateway's slot. Owners also see when the leaf wakes before its slot (guard) and its clock uncertainty; a dashed line marks a missed beacon.",
+          "lag": "Time to arrive (min)",
+          "guard": "Wake guard: how early it wakes (s)",
+          "residual": "Clock uncertainty (ppm)"
+        },
+        "cycle": {
+          "title": "Gateway cycle",
+          "description": "Seconds the modem, the network and the server connection took each cycle, and, apart, the wait for its slot.",
+          "sync": "Time to connect (s)",
+          "wait": "Wait for the slot (s)",
+          "none": "No cycle times reported in this period."
         }
       }
     },
@@ -1596,6 +1610,11 @@
       },
       "emptyCard": "Could not load bin data.",
       "emptyDescription": "The bin information is currently unavailable. Please try again later."
+    },
+    "linkQuality": {
+      "good": "Good link",
+      "fair": "Fair link",
+      "weak": "Weak link"
     },
     "logCard": {
       "log": "Log",

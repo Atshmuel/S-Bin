@@ -2,7 +2,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     batteryDaysLeft, binFullness, collectionDueAt, dayKey, daysBetween, detectCollections, fillRatePerDay,
-    fullnessPercent, healthCauses, isValidTimeZone, reportReliability, trendPerDay,
+    fullnessPercent, healthCauses, isValidTimeZone, reportReliability, timingPoints, trendPerDay,
 } from '../utils/analytics.js';
 import { DAY_MS, FULLNESS_CRITICAL_PERCENT, HOUR_MS } from '../utils/constants.js';
 
@@ -166,5 +166,30 @@ describe('healthCauses', () => {
         assert.deepEqual(healthCauses({}), []);
         assert.deepEqual(healthCauses(), []);
         assert.deepEqual(healthCauses({ faults: [{ code: 'bin_full' }], message: 'All good.' }), []);
+    });
+});
+
+describe('timingPoints', () => {
+    const taken = new Date('2026-11-04T20:15:28Z');
+    test('is how long the report waited, never below zero', () => {
+        const [late, early] = timingPoints([
+            { at: taken, receivedAt: new Date('2026-11-04T20:17:10Z') },
+            { at: taken, receivedAt: new Date('2026-11-04T20:15:27Z') },
+        ]);
+        assert.equal(late.lagSeconds, 102);
+        assert.equal(early.lagSeconds, 0);
+    });
+    test('adds only the timing figures the device sent, stage times included', () => {
+        const [point] = timingPoints([{
+            at: taken,
+            receivedAt: taken,
+            diagnostics: { guardSeconds: 1211, residualPpm: 15000, missedCycles: 0, batteryMv: 4056, stages: { modemMs: 2822, mqttMs: 3149 } },
+        }]);
+        assert.deepEqual(point, {
+            at: taken, lagSeconds: 0, guardSeconds: 1211, residualPpm: 15000, missedCycles: 0, modemMs: 2822, mqttMs: 3149,
+        });
+    });
+    test('has no device figures without diagnostics', () => {
+        assert.deepEqual(timingPoints([{ at: taken, receivedAt: taken }]), [{ at: taken, lagSeconds: 0 }]);
     });
 });

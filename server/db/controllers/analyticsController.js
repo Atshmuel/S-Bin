@@ -1,8 +1,8 @@
 import mongoose from 'mongoose'
-import { binLogModel, binModel, routeModel, userModel } from '../models/models.js'
+import { binLogModel, binModel, deviceDiagnosticModel, routeModel, userModel } from '../models/models.js'
 import { READINGS_FILTER, WITH_PROBLEMS_FILTER, readingsByBin } from '../service/readingsService.js'
 import { describeFaults } from '../../utils/faults.js'
-import { BINS_ONLY_FILTER, scopeToOrganization } from '../../utils/helpers.js'
+import { BINS_ONLY_FILTER, receivedAtOf, scopeToOrganization } from '../../utils/helpers.js'
 import { getOrgDeviceSettingsShared, intervalsByOrg } from '../service/sharedService.js'
 import { DASHBOARD_SECTIONS, devicesWithReasons } from './dashboardController.js'
 import { costsOverview } from '../service/costsService.js'
@@ -19,7 +19,7 @@ import {
 import {
     HEALTH_CAUSE_NAMES,
     batteryDaysLeft, binFullness, collectionDueAt, dayKey, daysBetween, detectCollections, fillRatePerDay,
-    FULLNESS_EXPRESSION, fullnessPercent, healthCauses, isValidTimeZone, rangeStart, reportReliability, trendPerDay,
+    FULLNESS_EXPRESSION, fullnessPercent, healthCauses, isValidTimeZone, rangeStart, reportReliability, timingPoints, trendPerDay,
 } from '../../utils/analytics.js'
 
 // Each section of the bin page and the analytics page is its own request, so
@@ -143,6 +143,27 @@ async function binConnection(bin, { days }) {
     };
 }
 
+// How long each report took to reach the server and, for owners only (the raw
+// diagnostics are theirs), what the device said about its own timing: a leaf's
+// wake guard and clock uncertainty, a gateway's stage times. Diagnostics are
+// kept shorter than logs, so those figures go back less far.
+async function binTiming(bin, { days, isOwner }) {
+    const since = rangeStart(days);
+    const logs = await binReadings(bin._id, since);
+    const diagnosticsByLog = new Map();
+    if (isOwner) {
+        const stored = await deviceDiagnosticModel.find({ binId: bin._id, createdAt: { $gte: since } }, { logId: 1, diagnostics: 1 }).lean();
+        for (const entry of stored) diagnosticsByLog.set(String(entry.logId), entry.diagnostics);
+    }
+    return {
+        points: timingPoints(logs.map(log => ({
+            at: log.createdAt,
+            receivedAt: receivedAtOf(log._id),
+            diagnostics: diagnosticsByLog.get(String(log._id)),
+        }))),
+    };
+}
+
 async function binReliability(bin) {
     const now = new Date();
     const [{ reportIntervalMinutes }, firstReports, counts] = await Promise.all([
@@ -164,6 +185,7 @@ const BIN_SECTIONS = {
     collections: binCollections,
     battery: binBattery,
     connection: binConnection,
+    timing: binTiming,
     reliability: binReliability,
 };
 
@@ -179,7 +201,7 @@ export async function getBinAnalytics(req, res) {
             { macAddress: 0, deviceKey: 0 },
         ).lean();
         if (!bin) return res.status(404).json({ message: 'Bin not found.' });
-        res.status(200).json(await section(bin, { days: parseRangeDays(req.query.range) }));
+        res.status(200).json(await section(bin, { days: parseRangeDays(req.query.range), isOwner: req.user.role === ROLES.OWNER }));
     } catch (error) {
         res.status(500).json({ message: error?.message || 'Failed to load the analytics.' });
     }

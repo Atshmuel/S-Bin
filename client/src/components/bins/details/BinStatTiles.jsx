@@ -1,3 +1,4 @@
+import LinkQuality from "@/components/bins/LinkQuality"
 import { format, formatDistanceToNow } from "date-fns"
 import { he } from "date-fns/locale"
 import { Link } from "react-router-dom"
@@ -122,7 +123,9 @@ function BinStatTiles({ bin }) {
                     </span>
                 )}
                 {viaMesh && (
-                    <span><span dir="ltr">{connection.rssi ?? '-'} dBm</span> · {t('components.binCard.hops')}: {connection.hops ?? '-'}</span>
+                    <span className="flex flex-wrap items-center gap-x-1">
+                        <span dir="ltr">{connection.rssi ?? '-'} dBm</span> <LinkQuality rssi={connection.rssi} /> · {t('components.binCard.hops')}: {connection.hops ?? '-'}
+                    </span>
                 )}
                 {/* A gateway's first tile already counts them. */}
                 {leaves.length > 0 && !gateway && (
