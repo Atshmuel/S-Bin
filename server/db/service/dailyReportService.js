@@ -5,6 +5,7 @@ import { fullSoon } from '../controllers/analyticsController.js'
 import { recentContradictions } from './routeService.js'
 import { isValidTimeZone } from '../../utils/analytics.js'
 import { describeFaults } from '../../utils/faults.js'
+import { reportText } from '../../utils/reportText.js'
 import { lastReportAt, upstreamId } from '../../utils/offline.js'
 import { DAILY_REPORT_DUE_WITHIN_HOURS, DAY_MS, HOUR_MS, ROLES } from '../../utils/constants.js'
 
@@ -26,67 +27,56 @@ const DATE_PARTS = Object.freeze({ day: 'numeric', month: 'short', year: 'numeri
 const TIME_PARTS = Object.freeze({ ...DATE_PARTS, hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
 
 // A device's time in its own time zone, e.g. "23 Oct 2026, 08:00 GMT+3".
-function formatTime(date, timeZone, parts = TIME_PARTS) {
-    return new Intl.DateTimeFormat('en-GB', { ...parts, timeZone: isValidTimeZone(timeZone) ? timeZone : 'UTC' })
+function formatTime(date, timeZone, parts = TIME_PARTS, locale = 'en-GB') {
+    return new Intl.DateTimeFormat(locale, { ...parts, timeZone: isValidTimeZone(timeZone) ? timeZone : 'UTC' })
         .format(new Date(date));
 }
 
-function deviceLabel(device) {
-    return device.kind === 'gateway' ? `Gateway ${device.binName}` : device.binName;
+function deviceLabel(device, text) {
+    return device.kind === 'gateway' ? text.gateway(device.binName) : device.binName;
 }
 
 // A device issue (see utils/deviceIssues.js) as a line of the owners' report.
-function issueLine(device, issue) {
-    const what = {
-        unexpected_restart: `restarted unexpectedly (${issue.value})`,
-        weak_signal: `weak cellular signal (${issue.value} dBm)`,
-        overheating: `running hot (${issue.value}°C)`,
-        noisy_sensor: `fill sensor unsteady`,
-        slow_cycle: `slow to connect (${Math.round(issue.value / 1000)} s)`,
-        weak_mesh_link: `weak link to its gateway`,
-        missed_report: `missed ${issue.value} report${issue.value === 1 ? '' : 's'}`,
-    }[issue.type] ?? issue.type;
-    return `${deviceLabel(device)}: ${what}, since ${formatTime(issue.since, device.timezone, DATE_PARTS)}.`;
+function issueLine(device, issue, text) {
+    const what = text.issues[issue.type]?.(issue.value) ?? issue.type;
+    return text.issue(deviceLabel(device, text), what, formatTime(issue.since, device.timezone, DATE_PARTS, text.locale));
 }
 
 // The owners' extra section: each device's open issues.
-export function issueSection(devices) {
+export function issueSection(devices, language = 'en') {
+    const text = reportText(language);
     return {
-        title: 'Device issues',
-        lines: devices.flatMap(device => (device.status?.issues ?? []).map(issue => issueLine(device, issue))),
+        title: text.titles.issues,
+        lines: devices.flatMap(device => (device.status?.issues ?? []).map(issue => issueLine(device, issue, text))),
     };
 }
 
-function offlineLine(device, devices) {
-    const parts = [`${deviceLabel(device)}: last report ${formatTime(lastReportAt(device), device.timezone)}.`];
+function offlineLine(device, devices, text) {
+    const parts = [text.lastReport(deviceLabel(device, text), formatTime(lastReportAt(device), device.timezone, TIME_PARTS, text.locale))];
     const leaves = devices.filter(other => String(upstreamId(other)) === String(device._id));
     if (leaves.length === 1) {
-        parts.push(`${leaves[0].binName} reports through it and cannot report until it is back.`);
+        parts.push(text.reportsThrough(leaves[0].binName));
     } else if (leaves.length > 1) {
-        parts.push(`${leaves.length} bins report through it and cannot report until it is back: ` +
-            `${leaves.map(leaf => leaf.binName).join(', ')}.`);
+        parts.push(text.manyReportThrough(leaves.length, leaves.map(leaf => leaf.binName).join(', ')));
     }
     const upstream = devices.find(other => String(other._id) === String(upstreamId(device)));
-    if (upstream) {
-        parts.push(`Its gateway ${upstream.binName} kept reporting after it, so the fault is at this bin ` +
-            '(battery, radio range or lost sync).');
-    }
+    if (upstream) parts.push(text.gatewayKept(upstream.binName));
     return parts.join(' ');
 }
 
 // A collection a driver marked that the bin's next report contradicted.
-function contradictionLine({ binName, claim, verification, truck, timeZone }, drivers) {
-    const who = drivers.get(String(claim?.by)) ?? 'the driver';
-    const on = truck ? ` (${truck.name} #${truck.unit})` : '';
-    return `${binName}: marked collected by ${who} at ${formatTime(claim?.at, timeZone)}${on}, ` +
-        `but its next report read it ${Math.round(verification.fullness ?? 0)}% full.`;
+function contradictionLine({ binName, claim, verification, truck, timeZone }, drivers, text) {
+    const who = drivers.get(String(claim?.by)) ?? text.driver;
+    return text.contradiction(binName, who, formatTime(claim?.at, timeZone, TIME_PARTS, text.locale),
+        truck ? text.truck(truck.name, truck.unit) : '', Math.round(verification.fullness ?? 0));
 }
 
 // The report's sections for one organization, each { title, lines }, empty
 // ones left out; and the devices it reports offline for the first time.
 // `contradictions` are the day's claims a report contradicted, with the names
-// of who made them in `drivers`.
-export function reportSections(devices, dueSoon, now = Date.now(), contradictions = [], drivers = new Map()) {
+// of who made them in `drivers`; the wording is in the user's `language`.
+export function reportSections(devices, dueSoon, now = Date.now(), contradictions = [], drivers = new Map(), language = 'en') {
+    const text = reportText(language);
     const offline = devices.filter(device => device.offlineCause?.cause === 'self' && device.status?.connection?.via);
     const newlyOffline = offline.filter(device => !device.status.offlineAlertSentAt);
     const stillOffline = offline.length - newlyOffline.length;
@@ -94,41 +84,41 @@ export function reportSections(devices, dueSoon, now = Date.now(), contradiction
     const dueWithin = dueSoon.filter(bin => new Date(bin.collectionDueAt).getTime() <= now + DAILY_REPORT_DUE_WITHIN_HOURS * HOUR_MS);
 
     const sections = [
-        { title: 'Stopped reporting', lines: newlyOffline.map(device => offlineLine(device, devices)) },
+        { title: text.titles.stopped, lines: newlyOffline.map(device => offlineLine(device, devices, text)) },
         {
-            title: 'Needs collecting',
+            title: text.titles.collect,
             lines: [
-                ...withReason('full').map(bin => `${bin.binName}: ${bin.fullness}% full, needs collecting now.`),
-                ...dueWithin.map(bin => `${bin.binName}: ${bin.fullness}% full, needs collecting in about ` +
-                    `${Math.max(Math.round((new Date(bin.collectionDueAt).getTime() - now) / HOUR_MS), 1)} hours.`),
+                ...withReason('full').map(bin => text.full(bin.binName, bin.fullness)),
+                ...dueWithin.map(bin => text.dueIn(bin.binName, bin.fullness,
+                    Math.max(Math.round((new Date(bin.collectionDueAt).getTime() - now) / HOUR_MS), 1))),
             ],
         },
         {
-            title: 'Marked collected, still full',
-            lines: contradictions.map(claim => contradictionLine(claim, drivers)),
+            title: text.titles.contradicted,
+            lines: contradictions.map(claim => contradictionLine(claim, drivers, text)),
         },
         {
-            title: 'Low battery',
-            lines: withReason('battery').map(device => `${deviceLabel(device)}: battery ${device.status.battery}%.`),
+            title: text.titles.battery,
+            lines: withReason('battery').map(device => text.battery(deviceLabel(device, text), device.status.battery)),
         },
         {
-            title: 'Health problems',
+            title: text.titles.health,
             lines: withReason('health').map(device => {
                 const problem = describeFaults(device.status.faults) || device.status.healthMessage;
-                return `${deviceLabel(device)}: ${device.status.health}` + (problem ? `, ${problem}` : '.');
+                return text.healthLine(deviceLabel(device, text), text.healthName(device.status.health), problem);
             }),
         },
         {
-            title: 'Maintenance overdue',
-            lines: withReason('maintenance').map(device => `${deviceLabel(device)}: service was due ` +
-                `${formatTime(device.maintenance.nextServiceAt, device.timezone, DATE_PARTS)}.`),
+            title: text.titles.maintenance,
+            lines: withReason('maintenance').map(device => text.maintenance(deviceLabel(device, text),
+                formatTime(device.maintenance.nextServiceAt, device.timezone, DATE_PARTS, text.locale))),
         },
     ].filter(section => section.lines.length > 0);
     // Outages named before only make a footnote in a report sent anyway.
     if (sections.length > 0 && stillOffline > 0) {
-        const note = `${stillOffline === 1 ? '1 device is' : `${stillOffline} devices are`} still offline, named in earlier reports.`;
-        if (sections[0].title === 'Stopped reporting') sections[0].lines.push(note);
-        else sections.unshift({ title: 'Stopped reporting', lines: [note] });
+        const note = text.stillOffline(stillOffline);
+        if (sections[0].title === text.titles.stopped) sections[0].lines.push(note);
+        else sections.unshift({ title: text.titles.stopped, lines: [note] });
     }
     return { sections, newlyOffline };
 }
@@ -137,21 +127,24 @@ function sectionsText(sections) {
     return sections.map(section => `${section.title}\n${section.lines.map(line => `- ${line}`).join('\n')}`).join('\n\n');
 }
 
-function sectionsHtml(sections) {
+function sectionsHtml(sections, text) {
+    const side = text.rtl ? 'right' : 'left';
     return sections.map(section =>
         `<h3 style='margin:24px 0 8px 0; font-size:16px; color:#333;'>${escapeHtml(section.title)}</h3>` +
-        `<ul style='margin:0; padding-left:20px; color:#555; line-height:1.6; font-size:15px;'>` +
+        `<ul style='margin:0; padding-${side}:20px; color:#555; line-height:1.6; font-size:15px;'>` +
         section.lines.map(line => `<li style='margin:0 0 6px 0;'>${escapeHtml(line)}</li>`).join('') +
         '</ul>').join('');
 }
 
-// Sends the report to each user, one by one; true when at least one email
-// went out.
-async function sendToEach(users, values) {
+// Sends the report to each user, one by one, in the language of their app
+// settings (`valuesFor(language)` gives the email's values); true when at
+// least one email went out.
+async function sendToEach(users, valuesFor) {
     let sent = false;
     for (const user of users) {
         try {
-            await sendTemplateEmail('dailyReport', user.email, { ...values, name: ` ${user.name}` });
+            const text = reportText(user.language);
+            await sendTemplateEmail(text.templateId, user.email, { ...valuesFor(user.language), name: ` ${user.name}` });
             sent = true;
         } catch (error) {
             console.error(`[Cron] Daily report to ${user.email} failed:`, error);
@@ -180,20 +173,26 @@ export async function sendDailyReports(now = Date.now()) {
 
     for (const report of reports) {
         // A day with only device issues goes to the owners alone.
-        const users = report.sections.length > 0 ? recipients.filter(user => String(user.org) === String(report.orgId)) : [];
-        report.sent = await sendToEach(users, {
-            orgName: report.orgName,
-            sectionsText: sectionsText(report.sections),
-            sectionsHtml: sectionsHtml(report.sections),
+        const users = report.hasSections ? recipients.filter(user => String(user.org) === String(report.orgId)) : [];
+        report.sent = await sendToEach(users, language => {
+            const sections = report.sectionsFor(language);
+            return {
+                orgName: report.orgName ?? reportText(language).yourOrganization,
+                sectionsText: sectionsText(sections),
+                sectionsHtml: sectionsHtml(sections, reportText(language)),
+            };
         });
         report.hasReaders = users.length > 0;
     }
-    const ownersSent = reports.length > 0 && await sendToEach(owners, {
-        orgName: 'all organizations',
-        sectionsText: reports.map(report => `== ${report.orgName} ==\n\n${sectionsText(report.ownerSections)}`).join('\n\n\n'),
-        sectionsHtml: reports.map(report =>
-            `<h2 style='margin:32px 0 0 0; font-size:18px; color:#0b7a57;'>${escapeHtml(report.orgName)}</h2>` +
-            sectionsHtml(report.ownerSections)).join(''),
+    const ownersSent = reports.length > 0 && await sendToEach(owners, language => {
+        const text = reportText(language);
+        return {
+            orgName: text.allOrganizations,
+            sectionsText: reports.map(report => `== ${report.orgName ?? text.yourOrganization} ==\n\n${sectionsText(report.ownerSectionsFor(language))}`).join('\n\n\n'),
+            sectionsHtml: reports.map(report =>
+                `<h2 style='margin:32px 0 0 0; font-size:18px; color:#0b7a57;'>${escapeHtml(report.orgName ?? text.yourOrganization)}</h2>` +
+                sectionsHtml(report.ownerSectionsFor(language), text)).join(''),
+        };
     });
 
     for (const report of reports) {
@@ -213,7 +212,9 @@ export async function sendDailyReports(now = Date.now()) {
 }
 
 // One organization's report, or null on a day with nothing to list; clears
-// the flags of outages that are over.
+// the flags of outages that are over. The sections are built per language
+// (`sectionsFor`, and with the device issues `ownerSectionsFor`); the
+// organization's name is null when it has none.
 async function organizationReport(orgId, now) {
     const scope = { role: ROLES.ADMIN, org: orgId };
     const [devices, { bins: dueSoon }, org, contradictions] = await Promise.all([
@@ -231,10 +232,14 @@ async function organizationReport(orgId, now) {
             { $set: { 'status.offlineAlertSentAt': null } });
     }
 
-    const { sections, newlyOffline } = reportSections(devices, dueSoon, now, contradictions, drivers);
+    const sectionsFor = language => reportSections(devices, dueSoon, now, contradictions, drivers, language).sections;
     // Device issues are for the owners only.
-    const issues = issueSection(devices);
-    const ownerSections = issues.lines.length > 0 ? [...sections, issues] : sections;
-    if (ownerSections.length === 0) return null;
-    return { orgId, orgName: org?.name ?? 'your organization', sections, ownerSections, newlyOffline };
+    const ownerSectionsFor = language => {
+        const issues = issueSection(devices, language);
+        const sections = sectionsFor(language);
+        return issues.lines.length > 0 ? [...sections, issues] : sections;
+    };
+    const { sections, newlyOffline } = reportSections(devices, dueSoon, now, contradictions, drivers);
+    if (ownerSectionsFor('en').length === 0) return null;
+    return { orgId, orgName: org?.name ?? null, hasSections: sections.length > 0, sectionsFor, ownerSectionsFor, newlyOffline };
 }

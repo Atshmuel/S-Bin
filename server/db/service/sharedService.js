@@ -198,7 +198,7 @@ async function emailRecipients(match) {
                 }
             },
             { $match: { "settingsData.notifications.email": true } },
-            { $project: { _id: 0, name: 1, email: 1, org: 1 } },
+            { $project: { _id: 0, name: 1, email: 1, org: 1, language: { $arrayElemAt: ['$settingsData.appLanguage', 0] } } },
         ]);
     } catch (error) {
         console.error(error)
