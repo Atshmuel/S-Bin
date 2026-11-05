@@ -44,6 +44,7 @@ function issueLine(device, issue) {
         noisy_sensor: `fill sensor unsteady`,
         slow_cycle: `slow to connect (${Math.round(issue.value / 1000)} s)`,
         weak_mesh_link: `weak link to its gateway`,
+        missed_report: `missed ${issue.value} report${issue.value === 1 ? '' : 's'}`,
     }[issue.type] ?? issue.type;
     return `${deviceLabel(device)}: ${what}, since ${formatTime(issue.since, device.timezone, DATE_PARTS)}.`;
 }

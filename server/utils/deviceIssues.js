@@ -1,11 +1,21 @@
-import { DAY_MS, DEVICE_EVENT_ISSUE_DAYS, DEVICE_ISSUE_LIMITS as LIMITS, FAULT_RESET_REASONS } from "./constants.js";
+import { DAY_MS, MINUTE_MS, DEVICE_EVENT_ISSUE_DAYS, DEVICE_ISSUE_LIMITS as LIMITS, FAULT_RESET_REASONS } from "./constants.js";
 
 // A device's problems, from its reports' diagnostics (see utils/diagnostics.js):
 // each report says which conditions it shows, and the bin's open issues are
 // updated from that. Pure.
 
-const EVENT_TYPES = new Set(["unexpected_restart"]);
+const EVENT_TYPES = new Set(["unexpected_restart", "missed_report"]);
 const known = value => value !== undefined && value !== null;
+
+// How many reports a device skipped between its previous report and this one
+// (both when the readings were taken), at its organization's interval: 0 when
+// the gap is within the allowed ratio of one interval, or when there was no
+// previous report to compare with.
+export function missedReports(previousAt, at, intervalMinutes) {
+    if (!previousAt || !at || !(intervalMinutes > 0)) return 0;
+    const intervals = (new Date(at) - new Date(previousAt)) / (intervalMinutes * MINUTE_MS);
+    return intervals > LIMITS.missedReportGapRatio ? Math.round(intervals) - 1 : 0;
+}
 
 // What a report shows, by type: true (present) or false (fine), with the value
 // that decided it; a type the report has no data for is left out, so its

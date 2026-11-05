@@ -267,7 +267,7 @@ export const DIAGNOSTICS_RETENTION_DAYS = 30;
 // report that reads fine again; an event (a restart) stays open
 // DEVICE_EVENT_ISSUE_DAYS after it last happened, so it is seen.
 export const DEVICE_ISSUE_TYPES = Object.freeze([
-    'unexpected_restart', 'weak_signal', 'overheating', 'noisy_sensor', 'slow_cycle', 'weak_mesh_link',
+    'unexpected_restart', 'weak_signal', 'overheating', 'noisy_sensor', 'slow_cycle', 'weak_mesh_link', 'missed_report',
 ]);
 export const DEVICE_ISSUE_LIMITS = Object.freeze({
     weakRsrpDbm: -110,          // below this in two reports in a row
@@ -277,6 +277,7 @@ export const DEVICE_ISSUE_LIMITS = Object.freeze({
     slowCycleMs: 60 * 1000,     // modem, network and server connection together
     leafMissedBeacons: 2,
     weakBeaconRssiDbm: -90,
+    missedReportGapRatio: 1.5,  // a gap this many report intervals long means a report was missed
 });
 export const DEVICE_EVENT_ISSUE_DAYS = 7;
 // Restarts that mean something went wrong; a power-on that no timer woke is

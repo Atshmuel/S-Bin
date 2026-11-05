@@ -14,7 +14,7 @@ import { cleanDiagnostics } from "../../utils/diagnostics.js";
 import { cleanFaults } from "../../utils/faults.js";
 import { recordRoleChange } from "../../db/service/roleChangeService.js";
 import { meshKeyUpdateFor } from "../../db/service/meshKeyService.js";
-import { detectIssues, nextIssues } from "../../utils/deviceIssues.js";
+import { detectIssues, missedReports, nextIssues } from "../../utils/deviceIssues.js";
 import {
     MAX_ABS_CLOCK_ERROR_SECONDS, MAX_ABS_DRIFT_PPM,
 } from "../../utils/constants.js";
@@ -177,12 +177,21 @@ export async function applyDeviceLog(bin, {
         }
     }
 
+    // Reports skipped since the previous one: an event issue, whatever the firmware sends.
+    const skipped = missedReports(
+        bin.status.updatedAt, takenAt,
+        reportIntervalMinutes ?? (await getOrgDeviceSettingsShared(bin.ownerId)).reportIntervalMinutes,
+    );
     bin.status.updatedAt = takenAt;
     // The latest diagnostics stay on the bin; firmware without them leaves the
     // last ones. Its open issues follow them, against the diagnostics before.
-    if (diagnostics) {
+    if (diagnostics || skipped > 0) {
         const open = (bin.status.issues ?? []).map(issue => issue.toObject?.() ?? issue);
-        bin.status.issues = nextIssues(open, detectIssues(diagnostics, bin.status.diagnostics), takenAt);
+        const found = diagnostics ? detectIssues(diagnostics, bin.status.diagnostics) : {};
+        if (skipped > 0) found.missed_report = { present: true, value: skipped };
+        bin.status.issues = nextIssues(open, found, takenAt);
+    }
+    if (diagnostics) {
         bin.status.diagnostics = diagnostics;
         if (diagnostics.firmwareVersion) bin.status.firmwareVersion = diagnostics.firmwareVersion;
     }

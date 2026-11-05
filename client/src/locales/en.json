@@ -858,7 +858,8 @@
           "overheating": "Running hot ({{value}}°C)",
           "noisy_sensor": "Fill sensor unsteady",
           "slow_cycle": "Slow to connect ({{value}} s)",
-          "weak_mesh_link": "Weak link to its gateway"
+          "weak_mesh_link": "Weak link to its gateway",
+          "missed_report": "Missed reports: {{value}}"
         },
         "hints": {
           "resetReason": "Why the chip last started its code from scratch; normally a scheduled wake.",
