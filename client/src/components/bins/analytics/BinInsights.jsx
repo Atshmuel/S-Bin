@@ -60,7 +60,10 @@ function BatteryCard({ bin, enabled }) {
 
     let outlook = t("pages.binDetails.analytics.battery.notEnoughData")
     if (data?.daysLeft != null) {
-        outlook = t("pages.binDetails.analytics.battery.daysLeft", { count: Math.round(data.daysLeft) })
+        const date = formatDate(Date.now() + data.daysLeft * 86400000, isRight, { month: "short", day: "numeric" })
+        outlook = t("pages.binDetails.analytics.battery.daysLeft", {
+            count: Math.round(data.daysLeft), percent: data.criticalPercent, date,
+        }) + " " + t("pages.binDetails.analytics.battery.rate", { rate: Math.abs(data.ratePerDay).toFixed(1) })
     } else if (data?.ratePerDay != null) {
         outlook = t("pages.binDetails.analytics.battery.notDraining")
     }

@@ -119,6 +119,7 @@ async function binBattery(bin, { days }) {
         binReadings(bin._id, rangeStart(BATTERY_TREND_DAYS)),
     ]);
     const ratePerDay = trendPerDay(recent.map(toReading), 'battery');
+    const { batteryCritical } = await organizationThresholds(bin.ownerId);
     return {
         daily: daily.map(day => ({
             day: day._id,
@@ -127,7 +128,8 @@ async function binBattery(bin, { days }) {
         })),
         battery: bin.status?.battery ?? null,
         ratePerDay,
-        daysLeft: batteryDaysLeft(bin.status?.battery, ratePerDay, (await organizationThresholds(bin.ownerId)).batteryCritical),
+        daysLeft: batteryDaysLeft(bin.status?.battery, ratePerDay, batteryCritical),
+        criticalPercent: batteryCritical,
     };
 }
 

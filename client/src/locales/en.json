@@ -1002,13 +1002,17 @@
         }
       },
       "areaChart": {
-        "title": "Bin Status Over Time",
-        "description": "Fill level, weight and battery from each report; a dashed line marks an emptying.",
+        "title": "Fill and Weight Over Time",
+        "description": "The fill level and the weight from each report; a dashed line marks an emptying.",
         "battery": "Battery Level",
         "level": "Fill Level",
         "weight": "Weight (kg)",
         "range": "Time range",
         "lastDays": "Last {{count}} Days",
+        "noFillData": "No fill level or weight readings in this period.",
+        "byDistance": "By distance (sensor)",
+        "byWeight": "By weight",
+        "weightShare": "{{kg}} kg ({{percent}}% of {{reference}} kg)",
         "collectionsNote_one": "Emptied once in this period.",
         "collectionsNote_other": "Emptied {{count}} times in this period."
       },
@@ -1024,8 +1028,9 @@
         "battery": {
           "title": "Battery",
           "awake": "Awake time (s)",
-          "daysLeft_one": "About 1 day until 20%.",
-          "daysLeft_other": "About {{count}} days until 20%.",
+          "daysLeft_one": "About 1 day until {{percent}}% ({{date}}).",
+          "daysLeft_other": "About {{count}} days until {{percent}}% ({{date}}).",
+          "rate": "Draining {{rate}}% a day.",
           "notDraining": "Not draining at the current rate.",
           "notEnoughData": "A forecast needs a few more reports."
         },

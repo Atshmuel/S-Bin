@@ -1023,13 +1023,17 @@
         }
       },
       "areaChart": {
-        "title": "מגמות רמת סוללה ומילוי",
-        "description": "רמת מילוי, משקל וסוללה מכל דיווח; קו מקווקו מסמן ריקון.",
+        "title": "מילוי ומשקל לאורך זמן",
+        "description": "רמת המילוי והמשקל מכל דיווח; קו מקווקו מסמן ריקון.",
         "battery": "רמת סוללה",
         "level": "רמת מילוי",
         "weight": "משקל (ק״ג)",
         "range": "טווח זמן",
         "lastDays": "{{count}} ימים אחרונים",
+        "noFillData": "אין קריאות מילוי או משקל בתקופה זו.",
+        "byDistance": "לפי מרחק (חיישן)",
+        "byWeight": "לפי משקל",
+        "weightShare": "{{kg}} ק״ג ({{percent}}% מתוך {{reference}} ק״ג)",
         "collectionsNote_one": "רוקן פעם אחת בתקופה הזו.",
         "collectionsNote_two": "רוקן פעמיים בתקופה הזו.",
         "collectionsNote_other": "רוקן {{count}} פעמים בתקופה הזו."
@@ -1046,9 +1050,10 @@
         "battery": {
           "title": "סוללה",
           "awake": "זמן ערות (שניות)",
-          "daysLeft_one": "עוד כיום אחד עד 20%.",
-          "daysLeft_two": "עוד כיומיים עד 20%.",
-          "daysLeft_other": "עוד כ־{{count}} ימים עד 20%.",
+          "daysLeft_one": "עוד כיום אחד עד {{percent}}% ({{date}}).",
+          "daysLeft_two": "עוד כיומיים עד {{percent}}% ({{date}}).",
+          "daysLeft_other": "עוד כ־{{count}} ימים עד {{percent}}% ({{date}}).",
+          "rate": "מתרוקנת ב־{{rate}}% ביום.",
           "notDraining": "הסוללה לא מתרוקנת בקצב הנוכחי.",
           "notEnoughData": "לתחזית נדרשים עוד כמה דיווחים."
         },
