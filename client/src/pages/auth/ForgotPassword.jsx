@@ -75,7 +75,7 @@ function ForgotPassword() {
     return (
         <div className="flex items-center justify-center min-h-screen bg-background px-4 relative">
             <Carousel className="w-full max-w-md" setApi={setApi}>
-                <CarouselContent>
+                <CarouselContent isRight={isRight}>
                     <CarouselItem key={1}>
                         <Card className="w-full max-w-md shadow-lg">
                             <CardHeader>
