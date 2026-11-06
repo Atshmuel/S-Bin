@@ -352,6 +352,54 @@ export function RoutesCard({ className }) {
     )
 }
 
+// The bins that gave the most trouble in the range, worst first: each skipped
+// stop, each collection the bin's next report contradicted and each day with a
+// health problem counts once; the columns show what the score is made of.
+export function ProblemBinsCard({ className }) {
+    const { t } = useTranslation()
+    const [range, setRange] = useState(30)
+    const { ref, data, isLoading, error } = useSection("problem-bins", range)
+    const text = (name, values) => t(`pages.analytics.sections.problemBins.${name}`, values)
+    const reasonsText = (reasons) => Object.entries(reasons)
+        .map(([reason, count]) => `${reason === "none" ? text("noReason") : t(`pages.routes.skipReasons.${reason}`)} ${count}`)
+        .join(" · ")
+    return (
+        <SectionCard ref={ref} className={className} title={text("title")} description={text("description")}
+            action={<RangeSelect value={range} onChange={setRange} className="w-[140px]" />}
+            isLoading={isLoading} error={error}>
+            {data && (data.bins.length > 0 ? (
+                // Scrolls inside the card, header kept, so the list never pushes the charts below it away.
+                <div className="max-h-80 overflow-auto">
+                    <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
+                            <tr>
+                                {["bin", "score", "skipped", "contradicted", "problemDays", "rate"].map(column => (
+                                    <th key={column} className="py-2 pe-4 text-start font-medium">{text(`columns.${column}`)}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                            {data.bins.map(bin => (
+                                <tr key={bin._id}>
+                                    <td className="max-w-56 py-2 pe-4"><BinLink bin={bin} /></td>
+                                    <td className="py-2 pe-4 font-semibold tabular-nums">{bin.score}</td>
+                                    <td className="py-2 pe-4">
+                                        <span className="tabular-nums">{bin.skipped}</span>
+                                        {bin.skipped > 0 && <span className="block text-xs text-muted-foreground">{reasonsText(bin.reasons)}</span>}
+                                    </td>
+                                    <td className={`py-2 pe-4 tabular-nums ${bin.contradicted ? "text-red-600" : ""}`}>{bin.contradicted}</td>
+                                    <td className="py-2 pe-4 tabular-nums">{bin.problemDays}</td>
+                                    <td className="whitespace-nowrap py-2 pe-4 tabular-nums">{bin.ratePerDay == null ? "—" : text("ratePerDay", { rate: Math.round(bin.ratePerDay) })}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            ) : <Muted>{text("none")}</Muted>)}
+        </SectionCard>
+    )
+}
+
 const SPENT_PARTS = ["fuel", "crew", "disposal", "system"]
 
 // The range's money (owners and admins): spent, saved against the old fixed

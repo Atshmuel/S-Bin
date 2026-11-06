@@ -721,6 +721,21 @@
           "scale": "Scale",
           "gps": "GPS",
           "connectivity": "Connectivity"
+        },
+        "problemBins": {
+          "title": "Problem bins",
+          "description": "Each skipped stop, each collection a bin's next report contradicted and each day with a health problem counts once.",
+          "none": "No trouble in this range.",
+          "noReason": "No reason",
+          "ratePerDay": "{{rate}}% per day",
+          "columns": {
+            "bin": "Bin",
+            "score": "Score",
+            "skipped": "Skipped stops",
+            "contradicted": "Contradicted",
+            "problemDays": "Days with a problem",
+            "rate": "Fills"
+          }
         }
       }
     },

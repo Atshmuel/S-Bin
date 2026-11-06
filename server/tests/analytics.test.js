@@ -2,7 +2,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     batteryDaysLeft, binFullness, collectionDueAt, dayKey, daysBetween, detectCollections, fillRatePerDay,
-    fullnessPercent, healthCauses, isValidTimeZone, reportReliability, timingPoints, trendPerDay,
+    fullnessPercent, healthCauses, isValidTimeZone, rankProblemBins, reportReliability, timingPoints, trendPerDay,
 } from '../utils/analytics.js';
 import { DAY_MS, FULLNESS_CRITICAL_PERCENT, HOUR_MS } from '../utils/constants.js';
 
@@ -191,5 +191,35 @@ describe('timingPoints', () => {
     });
     test('has no device figures without diagnostics', () => {
         assert.deepEqual(timingPoints([{ at: taken, receivedAt: taken }]), [{ at: taken, lagSeconds: 0 }]);
+    });
+});
+
+describe('rankProblemBins', () => {
+    const bins = [
+        { _id: 'a', binName: 'Alpha', status: { fillRatePerDay: 12 } },
+        { _id: 'b', binName: 'Beta' },
+        { _id: 'c', binName: 'Gamma', kind: 'gateway' },
+    ];
+    test('adds skipped stops, contradicted collections and problem days, worst first', () => {
+        const ranked = rankProblemBins(
+            bins,
+            [
+                { binId: 'a', status: 'skipped', reason: 'no_access', count: 2 },
+                { binId: 'a', status: 'skipped', reason: undefined, count: 1 },
+                { binId: 'a', status: 'done', count: 1 },
+                { binId: 'b', status: 'skipped', reason: 'blocked', count: 1 },
+            ],
+            [{ binId: 'b', days: 5 }],
+            10,
+        );
+        assert.deepEqual(ranked.map(row => [row._id, row.score]), [['b', 6], ['a', 4]]);
+        const alpha = ranked.find(row => row._id === 'a');
+        assert.deepEqual([alpha.skipped, alpha.contradicted, alpha.problemDays], [3, 1, 0]);
+        assert.deepEqual(alpha.reasons, { no_access: 2, none: 1 });
+        assert.equal(alpha.ratePerDay, 12);
+    });
+    test('leaves out bins with no trouble and bins outside the scope, and cuts the list', () => {
+        const ranked = rankProblemBins(bins, [{ binId: 'zzz', status: 'skipped', count: 9 }], [{ binId: 'a', days: 1 }, { binId: 'b', days: 1 }], 1);
+        assert.deepEqual(ranked.map(row => row._id), ['a']);
     });
 });

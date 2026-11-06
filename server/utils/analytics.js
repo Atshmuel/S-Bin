@@ -213,3 +213,44 @@ export function healthCauses({ faults, message } = {}) {
 }
 
 export const HEALTH_CAUSE_NAMES = Object.freeze(Object.keys(HEALTH_CAUSES));
+
+// The bins that gave the most trouble in a range, worst first. Each skipped
+// stop, each collection a driver marked that the bin's next report
+// contradicted, and each day with a health problem counts once: the score is
+// their sum, and the parts are returned so a reader sees what it is made of.
+//   stopGroups  [{ binId, status: 'skipped' | 'done', reason, count }]: the
+//               range's skipped stops (by reason) and contradicted collections
+//   problemDays [{ binId, days }]
+// Bins with no trouble are left out.
+export function rankProblemBins(bins, stopGroups, problemDays, limit) {
+    const rows = new Map(bins.map(bin => [String(bin._id), {
+        _id: bin._id,
+        binName: bin.binName,
+        kind: bin.kind ?? null,
+        ratePerDay: bin.status?.fillRatePerDay ?? null,
+        skipped: 0,
+        contradicted: 0,
+        problemDays: 0,
+        reasons: {},
+    }]));
+    for (const group of stopGroups) {
+        const row = rows.get(String(group.binId));
+        if (!row) continue;
+        if (group.status === 'skipped') {
+            row.skipped += group.count;
+            const reason = group.reason ?? 'none';
+            row.reasons[reason] = (row.reasons[reason] ?? 0) + group.count;
+        } else {
+            row.contradicted += group.count;
+        }
+    }
+    for (const entry of problemDays) {
+        const row = rows.get(String(entry.binId));
+        if (row) row.problemDays += entry.days;
+    }
+    return [...rows.values()]
+        .map(row => ({ ...row, score: row.skipped + row.contradicted + row.problemDays }))
+        .filter(row => row.score > 0)
+        .sort((a, b) => b.score - a.score || String(a.binName).localeCompare(String(b.binName)) || String(a._id).localeCompare(String(b._id)))
+        .slice(0, limit);
+}

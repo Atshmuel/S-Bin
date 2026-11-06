@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useBinStatusOV } from "@/hooks/overviews/useBinStatusOV"
 import { useLogsTypeOV } from "@/hooks/overviews/useLogsTypeOV"
 import AIInsights from "./AIInsights"
-import { BatteryOutlookCard, CollectionsTrendCard, ConnectivityCard, CostsCard, FullnessDistributionCard, FullSoonCard, HealthCausesCard, RoutesCard, WasteCard } from "@/components/analytics/FleetCards"
+import { BatteryOutlookCard, CollectionsTrendCard, ConnectivityCard, CostsCard, FullnessDistributionCard, FullSoonCard, HealthCausesCard, ProblemBinsCard, RoutesCard, WasteCard } from "@/components/analytics/FleetCards"
 import { Bar, BarChart, CartesianGrid, Label, Pie, PieChart, XAxis } from "recharts"
 import { useAppSide } from "@/hooks/useAppSide"
 import { useTranslation } from "react-i18next"
@@ -67,7 +67,7 @@ function Analytics() {
             )}
             <AIInsights />
             {/* Each card below makes its own request, once it scrolls into view. */}
-            <div className="grid gap-6 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <FullSoonCard />
                 <FullnessDistributionCard />
                 <Card className="flex min-w-0 flex-col">
@@ -134,11 +134,12 @@ function Analytics() {
                     </CardFooter>
                 </Card>
             </div>
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <CollectionsTrendCard />
                 <WasteCard />
                 {/* The collection routes: across the row, for the drivers' table. */}
                 <RoutesCard className="lg:col-span-2" />
+                <ProblemBinsCard className="lg:col-span-2" />
                 {/* The money: owners and admins, who set the costs. */}
                 {isAdmin && <CostsCard className="lg:col-span-2" />}
                 <BatteryOutlookCard />

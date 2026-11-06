@@ -177,6 +177,7 @@ export const BATTERY_BUCKETS = Object.freeze([
 
 // List lengths in responses.
 export const FULL_SOON_LIST_LIMIT = 20;
+export const PROBLEM_BINS_LIMIT = 20;
 export const BATTERY_SOON_LIST_LIMIT = 10;
 export const LEAST_RELIABLE_LIMIT = 5;
 export const GATEWAY_LIST_LIMIT = 10;

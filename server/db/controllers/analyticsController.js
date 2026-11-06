@@ -14,13 +14,13 @@ import { lastDays, organizationDays, scopedOrganizations } from '../service/stat
 import {
     ANALYTICS_RANGES_DAYS, BATTERY_BUCKETS, BATTERY_SOON_DAYS, BATTERY_SOON_LIST_LIMIT, BATTERY_TREND_DAYS,
     DEFAULT_RANGE_DAYS, FILL_RATE_WINDOW_DAYS, FULL_SOON_HOURS, FULL_SOON_LIST_LIMIT, FULLNESS_BUCKETS,
-    GATEWAY_LIST_LIMIT, LEAST_RELIABLE_LIMIT, RELIABILITY_DAYS, OFFLINE_AFTER_MISSED_REPORTS,
+    GATEWAY_LIST_LIMIT, LEAST_RELIABLE_LIMIT, PROBLEM_BINS_LIMIT, RELIABILITY_DAYS, OFFLINE_AFTER_MISSED_REPORTS,
     AI_BRIEFING_DAYS, AI_BRIEFING_DEVICE_LIMIT, DAY_MS, HOUR_MS, ROLES,
 } from '../../utils/constants.js'
 import {
     HEALTH_CAUSE_NAMES,
     batteryDaysLeft, binFullness, collectionDueAt, dayKey, daysBetween, detectCollections, fillRatePerDay,
-    FULLNESS_EXPRESSION, fullnessPercent, healthCauses, isValidTimeZone, rangeStart, reportReliability, timingPoints, trendPerDay,
+    FULLNESS_EXPRESSION, fullnessPercent, healthCauses, isValidTimeZone, rangeStart, rankProblemBins, reportReliability, timingPoints, trendPerDay,
 } from '../../utils/analytics.js'
 
 // Each section of the bin page and the analytics page is its own request, so
@@ -521,6 +521,46 @@ async function routesOverview(user, { days, timeZone }) {
     return overview;
 }
 
+// The bins with the most trouble in the range (see rankProblemBins): skipped
+// stops and contradicted collections from the routes, days with a health
+// problem from the logs. Both are counted by the database, per bin.
+async function problemBinsOverview(user, { days, timeZone }) {
+    const start = rangeStart(days);
+    const bins = await scopedBins(user, {}, { binName: 1, kind: 1, 'status.fillRatePerDay': 1 });
+    const ids = bins.map(bin => bin._id);
+    const [stopGroups, problemDays] = await Promise.all([
+        routeModel.aggregate([
+            { $match: { ...routeScope(user), serviceDay: { $gte: dayKey(start, timeZone) }, status: { $ne: 'cancelled' } } },
+            { $unwind: '$stops' },
+            {
+                $match: {
+                    'stops.binId': { $in: ids },
+                    $or: [{ 'stops.status': 'skipped' }, { 'stops.status': 'done', 'stops.verification.status': 'contradicted' }],
+                },
+            },
+            {
+                $group: {
+                    _id: { binId: '$stops.binId', status: '$stops.status', reason: '$stops.skipReason' },
+                    count: { $sum: 1 },
+                },
+            },
+        ]),
+        binLogModel.aggregate([
+            { $match: { binId: { $in: ids }, ...READINGS_FILTER, createdAt: { $gte: start }, ...WITH_PROBLEMS_FILTER } },
+            { $group: { _id: { binId: '$binId', day: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: timeZone } } } } },
+            { $group: { _id: '$_id.binId', days: { $sum: 1 } } },
+        ]),
+    ]);
+    return {
+        bins: rankProblemBins(
+            bins,
+            stopGroups.map(group => ({ binId: group._id.binId, status: group._id.status, reason: group._id.reason, count: group.count })),
+            problemDays.map(entry => ({ binId: entry._id, days: entry.days })),
+            PROBLEM_BINS_LIMIT,
+        ),
+    };
+}
+
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 
 // Firmware versions, one level per request: an owner's organizations, an
@@ -583,6 +623,7 @@ const OVERVIEW_SECTIONS = {
     connectivity: connectivityOverview,
     'health-causes': healthCausesOverview,
     routes: routesOverview,
+    'problem-bins': problemBinsOverview,
     costs: costsOverview,
     ...DASHBOARD_SECTIONS,
 };
