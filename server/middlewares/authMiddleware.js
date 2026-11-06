@@ -9,7 +9,8 @@ export async function authToken(req, res, next) {
 
     try {
         const data = validateToken(accessToken)
-        if (!data) return res.status(401).json({ message: 'Invalid or expired token' });
+        // A password-reset token is not a session.
+        if (!data || data.reset || typeof data.id !== 'string') return res.status(401).json({ message: 'Invalid or expired token' });
 
         const user = await userModel.findById(data.id);
         if (!user) return res.status(401).json({ message: 'User not found' });
@@ -41,7 +42,12 @@ export function resetToken(req, res, next) {
     }
     try {
         const data = validateToken(resetToken)
-        if (!data) return res.status(401).json({ message: 'Invalid or expired token' });
+        // Only the token verifyRecoveryCode gives out: a session token (signed with
+        // the same secret) has no email, and would reset whoever a query on
+        // `email: undefined` matched.
+        if (!data || data.reset !== true || typeof data.email !== 'string' || !data.email) {
+            return res.status(401).json({ message: 'Invalid or expired token' });
+        }
         req.reset = data
         next();
     } catch (error) {

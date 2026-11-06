@@ -4,7 +4,7 @@ import {
     binModel, binLogModel, deviceDiagnosticModel, deviceInstructionModel, organizationModel, orgStatModel, routeModel,
     routeReservationModel, templateModel, userModel, userSettingModel,
 } from '../models/models.js'
-import { BINS_ONLY_FILTER, scopeToOrganization } from '../../utils/helpers.js'
+import { BINS_ONLY_FILTER, escapeHtml, scopeToOrganization } from '../../utils/helpers.js'
 import { DAY_MS, LOG_RETENTION_DAYS, LOG_TYPES_DAYS, ROLES } from "../../utils/constants.js";
 import { removeBinConfig } from '../../mqtt/mqttHandlers.js';
 import { deleteDeviceAccounts } from '../../mqtt/brokerAccounts.js';
@@ -23,9 +23,11 @@ export async function getBinShared(binId) {
     }
 }
 
+// The device with this MAC and key. Both must be strings: a key sent as an
+// object ({ "$ne": null }) would be a query operator matching any key.
 export async function getBinByMacAndKeyShared(macAddress, deviceKey) {
     try {
-        if (!macAddress || !deviceKey)
+        if (typeof macAddress !== 'string' || typeof deviceKey !== 'string' || !macAddress || !deviceKey)
             throw new Error('macAddress and deviceKey are mandatory')
         const bin = await binModel.findOne({ deviceKey, macAddress })
         return bin
@@ -139,9 +141,11 @@ export async function invalidateOrgStats(orgIds) {
 export async function sendTemplateEmail(templateId, to, values) {
     const template = await templateModel.findOne({ templateId })
     if (!template) throw new Error(`Email template "${templateId}" not found`)
-    const fill = text => Object.entries(values).reduce(
-        (filled, [key, value]) => filled.replaceAll(`{{${key}}}`, String(value)), text)
-    await sendEmail(template.email, to, template.subject, fill(template.textTemplate), fill(template.htmlTemplate))
+    // In the HTML version a value is text (a name cannot add a link), except
+    // one whose name ends in "Html", which its caller built and escaped itself.
+    const fill = (text, asHtml) => Object.entries(values).reduce(
+        (filled, [key, value]) => filled.replaceAll(`{{${key}}}`, asHtml && !key.endsWith('Html') ? escapeHtml(value) : String(value)), text)
+    await sendEmail(template.email, to, template.subject, fill(template.textTemplate, false), fill(template.htmlTemplate, true))
 }
 
 //Orgs

@@ -44,6 +44,19 @@ app.use(cookieParser());
 // from the nginx container.
 app.set("trust proxy", 1);
 app.use("/api", apiLimiter);
+// In production a 500 says only that something failed: the message a handler
+// put in it (often the database's own error) goes to the log instead.
+if (process.env.NODE_ENV === 'production') {
+    app.use((req, res, next) => {
+        const json = res.json.bind(res);
+        res.json = (body) => {
+            if (res.statusCode !== 500) return json(body);
+            console.error(`[500] ${req.method} ${req.originalUrl}:`, body?.message ?? body);
+            return json({ message: 'Internal server error' });
+        };
+        next();
+    });
+}
 app.use("/api/bins", binRouter);
 app.use("/api/logs", logRouter);
 app.use("/api/users", userRouter);

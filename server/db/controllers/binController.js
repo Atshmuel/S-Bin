@@ -1,12 +1,12 @@
 import mongoose from 'mongoose'
 import { binModel, organizationModel } from '../models/models.js'
-import { appendFilter, BINS_ONLY_FILTER, healthRank, listSortStages, scopeToOrganization } from '../../utils/helpers.js'
+import { appendFilter, BINS_ONLY_FILTER, escapeRegex, healthRank, listSortStages, pageLimit, scopeToOrganization } from '../../utils/helpers.js'
 import { FULLNESS_EXPRESSION } from '../../utils/analytics.js'
 import { csvRow, startCsv } from '../../utils/csv.js'
 import { isLngLat } from '../../utils/geo.js'
 import { getNextReportSchedule } from '../../utils/deviceSchedule.js'
 import {
-    DEFAULT_PAGE_SIZE, MAP_CELL_PX, MAP_VIEW_LIMIT, ROLES,
+    MAP_CELL_PX, MAP_VIEW_LIMIT, ROLES,
 } from '../../utils/constants.js'
 import { deleteDeviceData, getOrgDeviceSettingsShared, invalidateOrgStats, updateMaintenance } from '../service/sharedService.js'
 import { scopedThresholds } from '../service/thresholdService.js'
@@ -35,7 +35,7 @@ export async function getBin(req, res) {
     // The raw diagnostics are for owners (2k); anyone else gets the bin without them.
     const pipeline = [
         { $match: query },
-        { $project: { macAddress: 0, ...(req.user.role === ROLES.OWNER ? {} : { 'status.diagnostics': 0 }) } }
+        { $project: { macAddress: 0, deviceKey: 0, ...(req.user.role === ROLES.OWNER ? {} : { 'status.diagnostics': 0 }) } }
     ]
 
     try {
@@ -95,15 +95,15 @@ export async function getBin(req, res) {
 export async function getAllUserBins(req, res) {
     const { page, limit, search } = req.query
 
-    const pageNum = Number(page) || 1;
-    const limitNum = Number(limit) || DEFAULT_PAGE_SIZE;
+    const pageNum = Math.max(Math.floor(Number(page)) || 1, 1);
+    const limitNum = pageLimit(limit);
     const skip = (pageNum - 1) * limitNum;
 
     let query = {}
     query = scopeToOrganization(query, req.user)
 
     if (search) {
-        query.binName = { $regex: search, $options: 'i' };
+        query.binName = { $regex: escapeRegex(search), $options: 'i' };
     }
     // Sorted and paged before anything is joined, so only the page's bins
     // are read in full.
@@ -113,7 +113,7 @@ export async function getAllUserBins(req, res) {
         { $skip: skip },
         { $limit: limitNum },
         // Diagnostics are for the bin page only.
-        { $project: { macAddress: 0, _sortRank: 0, 'status.diagnostics': 0 } },
+        { $project: { macAddress: 0, deviceKey: 0, _sortRank: 0, 'status.diagnostics': 0 } },
     ]
 
     try {
@@ -155,7 +155,7 @@ const BIN_EXPORT_COLUMNS = Object.freeze([
 export async function exportBins(req, res) {
     try {
         const query = scopeToOrganization({}, req.user)
-        if (req.query.search) query.binName = { $regex: req.query.search, $options: 'i' };
+        if (req.query.search) query.binName = { $regex: escapeRegex(req.query.search), $options: 'i' };
         const orgs = await organizationModel.find({}, { name: 1 }).lean();
         const orgNames = new Map(orgs.map(org => [String(org._id), org.name]));
 
@@ -416,6 +416,10 @@ export async function updateBinMaintenance(req, res) {
     const { id: technicianId } = req.user
     const { notes } = req.body
     try {
+        // Only a bin of the user's own organization (any for an owner).
+        if (!await binModel.exists(scopeToOrganization({ _id: new mongoose.Types.ObjectId(id) }, req.user))) {
+            return res.status(404).json({ message: 'Bin not found' });
+        }
         const success = await updateMaintenance(id, notes, technicianId)
         if (!success) {
             return res.status(404).json({ message: 'Bin not found' });

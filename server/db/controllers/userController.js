@@ -4,7 +4,7 @@ import { emailSchema, passwordSchema } from '../../utils/inputValidations.js'
 import { deleteUserRefs, organizationExist, sendTemplateEmail } from '../service/sharedService.js'
 import { randomUUID } from 'crypto'
 import {
-    ACCOUNT_VERIFICATION_HOURS, DAY_MS, HOUR_MS, MAX_OTP_ATTEMPTS, MINUTE_MS, RESET_TOKEN_MINUTES, ROLES, ROLE_LEVEL,
+    ACCOUNT_VERIFICATION_HOURS, DAY_MS, HOUR_MS, MAX_OTP_ATTEMPTS, MAX_RECOVERY_REQUESTS, MINUTE_MS, RECOVERY_REQUEST_WINDOW_MS, RESET_TOKEN_MINUTES, ROLES, ROLE_LEVEL,
     SESSION_DAYS,
 } from '../../utils/constants.js'
 import mongoose from 'mongoose'
@@ -86,7 +86,7 @@ export async function createUser(req, res) {
 }
 
 export async function createUserAsAdmin(req, res) {
-    const { role: currentUserRole } = req.user
+    const { role: currentUserRole, org: currentUserOrg } = req.user
     const { email, password, name, status, role, org, manager } = req.body
 
     const session = await mongoose.startSession();
@@ -105,6 +105,10 @@ export async function createUserAsAdmin(req, res) {
 
         if (currentUserRole !== ROLES.OWNER && role === ROLES.OWNER) {
             return res.status(403).json({ message: 'You cannot assign greated role then yours' })
+        }
+        // An admin adds users to their own organization only.
+        if (currentUserRole !== ROLES.OWNER && String(org) !== currentUserOrg) {
+            return res.status(403).json({ message: 'You can only add users to your own organization' })
         }
 
         if (!["pending", "active", "inactive", "suspended"].includes(status))
@@ -231,33 +235,41 @@ export async function logoutUser(req, res) {
 
 }
 
+// Sends a recovery code. The answer is the same whether the address has an
+// account or not (so it cannot be used to find accounts), and an account gets
+// at most MAX_RECOVERY_REQUESTS codes per RECOVERY_REQUEST_WINDOW_MS: each new
+// code brings new guesses, so without the cap the guesses would be unlimited.
 export async function forgotPassword(req, res) {
     const { email: userEmail } = req.body
+    const SENT = 'If this address has an account, a recovery code was sent to it'
+    const { error } = emailSchema.validate(userEmail ?? '')
+    if (error) return res.status(400).json({ message: error.message });
     try {
-        const { error } = emailSchema.validate(userEmail ?? '')
-        if (error) throw new Error(error.message);
+        const lowerCaseEmail = userEmail.toLowerCase()
+        const user = await userModel.findOne({ email: lowerCaseEmail }, { recoveryRequests: 1 }).lean()
+        if (!user) return res.status(200).json({ message: SENT })
+
+        const now = new Date()
+        const requests = user.recoveryRequests
+        const inWindow = requests?.since && now - requests.since < RECOVERY_REQUEST_WINDOW_MS
+        if (inWindow && requests.count >= MAX_RECOVERY_REQUESTS) return res.status(200).json({ message: SENT })
 
         const { otp, expiresAt, expiryMinutes } = await generateOTP()
-        const update = {
+        await userModel.updateOne({ _id: user._id }, {
             $set: {
-                recoveryCode: {
-                    otp,
-                    expiresAt
-                }
+                recoveryCode: { otp, expiresAt },
+                recoveryRequests: inWindow ? { count: requests.count + 1, since: requests.since } : { count: 1, since: now },
             }
-        };
-        const lowerCaseEmail = userEmail.toLowerCase()
-        const user = await userModel.findOneAndUpdate({ email: lowerCaseEmail }, update, { new: true });
-        if (!user) throw new Error(`Could not find email ${userEmail}, Please verify you email`);
-
-        await sendTemplateEmail('forgotPassword', userEmail, {
+        });
+        await sendTemplateEmail('forgotPassword', lowerCaseEmail, {
             otp,
             expiryMinutes,
             supportEmail: process.env.EMAIL_SUPPORT_USER,
         })
-        res.status(200).json({ message: 'Email sent successfully' })
+        res.status(200).json({ message: SENT })
     } catch (error) {
-        res.status(500).json({ message: error?.message || 'Failed to send the email.' })
+        console.error('Failed to send a recovery code:', error);
+        res.status(500).json({ message: 'Failed to send the email.' })
     }
 }
 
@@ -456,8 +468,10 @@ export async function updateUserStatus(req, res) {
     if (!["pending", "active", "inactive", "suspended"].includes(status))
         return res.status(400).json({ message: 'This status is not allow' })
 
+    // An admin changes the status of their own organization's users only.
     if (role !== ROLES.OWNER) {
         query.role = { $nin: [ROLES.OWNER, ROLES.ADMIN] }
+        query.org = new mongoose.Types.ObjectId(req.user.org)
     }
 
 
@@ -472,14 +486,29 @@ export async function updateUserStatus(req, res) {
         return res.status(400).json({ message: error.message });
     }
 }
+// An owner moves a user to an organization and gives them a manager there; an
+// admin only changes the manager of a user of their own organization. The
+// manager is an admin or owner of the user's (new) organization.
 export async function updateUserManagerAndOrg(req, res) {
-    const { role } = req.user
+    const { role, org: currentUserOrg } = req.user
     const { id: userId } = req.params
     const { org, manager } = req.body
+    const isOwner = role === ROLES.OWNER
+    if (!mongoose.Types.ObjectId.isValid(org) || (manager && !mongoose.Types.ObjectId.isValid(manager))) {
+        return res.status(400).json({ message: 'Invalid org or manager' })
+    }
+    const targetOrg = isOwner ? String(org) : currentUserOrg
     try {
-        let query = appendFilter({}, role === ROLES.OWNER, 'org', new mongoose.Types.ObjectId(org))
-        query = appendFilter(query, (role === ROLES.ADMIN || role === ROLES.OWNER) && manager, 'manager', new mongoose.Types.ObjectId(manager))
-        const updated = await userModel.findOneAndUpdate({ _id: new mongoose.Types.ObjectId(userId) }, { $set: query }, { new: true });
+        if (isOwner && !await organizationExist(org)) {
+            return res.status(400).json({ message: 'This organization does not exist' })
+        }
+        if (manager && !await userModel.exists({ _id: manager, org: targetOrg, role: { $in: [ROLES.ADMIN, ROLES.OWNER] } })) {
+            return res.status(400).json({ message: 'The manager must be an admin of the same organization' })
+        }
+        let query = appendFilter({}, isOwner, 'org', new mongoose.Types.ObjectId(org))
+        query = appendFilter(query, manager, 'manager', new mongoose.Types.ObjectId(manager))
+        const filter = { _id: new mongoose.Types.ObjectId(userId), ...(isOwner ? {} : { org: new mongoose.Types.ObjectId(currentUserOrg) }) }
+        const updated = await userModel.findOneAndUpdate(filter, { $set: query }, { new: true });
         if (!updated) throw new Error('User not found or not allowed to update')
         return res.status(200).json({ message: 'Updated successfully' });
     } catch (error) {
@@ -545,8 +574,13 @@ export async function getUserManagers(req, res) {
         return res.status(500).json({ managers: [] })
     }
 }
+// An organization's managers: any organization's for an owner, one's own for anyone else.
 export async function getUserManagersByOrgId(req, res) {
     const { id } = req.params
+    const { role, org } = req.user
+    if (role !== ROLES.OWNER && id !== org) {
+        return res.status(403).json({ message: 'Forbidden' })
+    }
 
     let query = {
         org: new mongoose.Types.ObjectId(id),
@@ -572,7 +606,8 @@ export async function deleteUser(req, res) {
         }
 
         const userToDelete = await userModel.findById(id);
-        if (currentUserRole !== ROLES.OWNER && (!userToDelete || userToDelete.role !== ROLES.USER)) {
+        // An admin deletes plain users of their own organization only.
+        if (currentUserRole !== ROLES.OWNER && (!userToDelete || userToDelete.role !== ROLES.USER || String(userToDelete.org) !== req.user.org)) {
             return res.status(403).json({ message: "User not found or cannot delete an owner / admin" });
         }
         await deleteUserRefs(id);

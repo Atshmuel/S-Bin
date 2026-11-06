@@ -1,5 +1,6 @@
 import { binModel, organizationModel, userModel } from '../models/models.js'
 import { getNotificationRecipients, getOwnerRecipients, sendTemplateEmail } from './sharedService.js'
+import { escapeHtml } from '../../utils/helpers.js'
 import { devicesWithReasons } from '../controllers/dashboardController.js'
 import { fullSoon } from '../controllers/analyticsController.js'
 import { recentContradictions } from './routeService.js'
@@ -18,10 +19,6 @@ import { DAILY_REPORT_DUE_WITHIN_HOURS, DAY_MS, HOUR_MS, ROLES } from '../../uti
 // names the device and cleared once it reports again. A leaf behind a silent
 // gateway is no fault of its own; the gateway's entry names it instead.
 // Devices that never reported (no connection yet) are not reported offline.
-
-function escapeHtml(text) {
-    return String(text).replace(/[&<>"']/g, char => `&#${char.charCodeAt(0)};`);
-}
 
 const DATE_PARTS = Object.freeze({ day: 'numeric', month: 'short', year: 'numeric' });
 const TIME_PARTS = Object.freeze({ ...DATE_PARTS, hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });

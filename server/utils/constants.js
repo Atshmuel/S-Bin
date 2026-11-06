@@ -186,6 +186,9 @@ export const RECENT_LOGS_LIMIT = 50;
 
 // Accounts: failed one-time-code guesses allowed before the code is discarded.
 export const MAX_OTP_ATTEMPTS = 5;
+// Recovery codes one account gets per window; each comes with MAX_OTP_ATTEMPTS guesses.
+export const MAX_RECOVERY_REQUESTS = 3;
+export const RECOVERY_REQUEST_WINDOW_MS = 60 * MINUTE_MS;
 
 // Device report validation: a value beyond these is not plausible.
 export const REPORT_MESSAGE_MAX_LENGTH = 256;
@@ -207,6 +210,8 @@ export const SERVICE_INTERVAL_DAYS = 30;
 
 // Lists and routes.
 export const DEFAULT_PAGE_SIZE = 10;
+// The most rows one page of a list holds, whatever ?limit asks.
+export const MAX_PAGE_SIZE = 100;
 // How many logs a CSV export names and writes at a time.
 export const EXPORT_BATCH_SIZE = 1000;
 export const RECENT_LOGS_HOURS = 24;
@@ -353,6 +358,9 @@ export const MAP_CELL_PX = 80;
 // devices it lists (the most urgent first).
 export const AI_MODEL = 'gemini-2.5-flash';
 export const AI_BRIEFING_DAYS = 7;
+// How long the server keeps an AI overview for the same fleet and language,
+// so reloading the page does not call the model again.
+export const AI_OVERVIEW_CACHE_MS = 15 * MINUTE_MS;
 export const AI_BRIEFING_DEVICE_LIMIT = 60;
 
 // Accounts and sessions.

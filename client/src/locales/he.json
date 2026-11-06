@@ -1686,7 +1686,6 @@
       }
     },
     "binCard": {
-      "deviceKey": "מפתח הגישה של המכשיר",
       "ownerId": "מזהה בעלים",
       "location": "מיקום",
       "scaleUncalibrated": "המשקל לא מכויל",
@@ -2013,7 +2012,7 @@
     "failedToUpdateStatus": "עדכון הסטטוס נכשל.",
     "updatedOrgAndManagerSuccessfully": "הארגון והמנהל עודכנו בהצלחה.",
     "failedToUpdateOrgAndManager": "עדכון הארגון והמנהל נכשל.",
-    "forgotPasswordEmailSent": "נשלח אימייל לשחזור סיסמה, אנא בדקו את תיבת הדואר.",
+    "forgotPasswordEmailSent": "אם לכתובת הזו יש חשבון, שלחנו אליה קוד שחזור. אנא בדקו את תיבת הדואר.",
     "failedToSendForgotPasswordEmail": "שליחת אימייל לשחזור סיסמה נכשלה, אנא נסו שוב.",
     "verificationCodeInvalid": "קוד האימות אינו תקין, אנא נסו שוב.",
     "verificationCodeValid": "קוד האימות תקין, כעת ניתן לאפס את הסיסמה.",

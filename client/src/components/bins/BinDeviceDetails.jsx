@@ -5,14 +5,10 @@ import { MobileTooltip } from "../ui/mobile-tooltip"
 import { toLatLng } from "@/utils/geo";
 import { formatSleepDuration } from "@/utils/helpers"
 
-// The device's sleep figures, keys and location, one row each.
+// The device's sleep figures, organization and location, one row each. The
+// device key is not here: the server never sends it, the device gets it itself.
 function BinDeviceDetails({ bin, handleLocationClick }) {
     const { t } = useTranslation()
-
-    function handleCopyDeviceKey() {
-        navigator.clipboard.writeText(bin?.deviceKey)
-        toast.success('Copied device key to your clipboard!')
-    }
 
     function handleCopyOwnerId() {
         navigator.clipboard.writeText(bin?.ownerId)
@@ -38,16 +34,6 @@ function BinDeviceDetails({ bin, handleLocationClick }) {
                 <span>{bin.status.lastAwakeSeconds
                     ? formatSleepDuration(bin.status.lastAwakeSeconds, t)
                     : '-'}</span>
-            </div>
-
-            <div className="flex flex-row justify-between">
-                <span className="font-medium">{t('components.binCard.deviceKey')}:</span>
-                <MobileTooltip content={bin.deviceKey}>
-                    <div onClick={handleCopyDeviceKey} className="flex gap-2 cursor-copy">
-                        <Copy size={18} />
-                        ************
-                    </div>
-                </MobileTooltip>
             </div>
 
             <div className="flex flex-row justify-between">

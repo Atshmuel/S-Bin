@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
-import { appendFilter, healthRank, listSortStages, receivedAtOf, scopeToOrganization } from '../../utils/helpers.js';
+import { appendFilter, healthRank, listSortStages, pageLimit, receivedAtOf, scopeToOrganization } from '../../utils/helpers.js';
 import { binLogModel, binModel, deviceDiagnosticModel } from '../models/models.js'
 import { verifyBinOwner } from '../service/sharedService.js';
-import { ANALYTICS_RANGES_DAYS, DAY_MS, DEFAULT_PAGE_SIZE, DEFAULT_RANGE_DAYS, EXPORT_BATCH_SIZE, ROLES } from "../../utils/constants.js";
+import { ANALYTICS_RANGES_DAYS, DAY_MS, DEFAULT_RANGE_DAYS, EXPORT_BATCH_SIZE, ROLES } from "../../utils/constants.js";
 import { csvRow, startCsv } from '../../utils/csv.js';
 
 // The logs page's sortable columns (see listSortStages). The plain fields have
@@ -132,8 +132,8 @@ async function logsFilterOf(req) {
 }
 
 export async function getAllLogs(req, res) {
-    const page = Math.max(Number(req.query.page) || 1, 1);
-    const limit = Number(req.query.limit) || DEFAULT_PAGE_SIZE;
+    const page = Math.max(Math.floor(Number(req.query.page)) || 1, 1);
+    const limit = pageLimit(req.query.limit);
     const skip = (page - 1) * limit;
 
     try {

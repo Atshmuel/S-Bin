@@ -23,6 +23,16 @@ export const userSchema = new mongoose.Schema({
         required: false,
         default: undefined
     },
+    // The recovery codes asked for in the current window (see forgotPassword),
+    // kept apart from the code itself, which every new request replaces.
+    recoveryRequests: {
+        type: {
+            count: Number,
+            since: Date,
+        },
+        required: false,
+        default: undefined
+    },
     accountVerification: {
         type: {
             token: String,

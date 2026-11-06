@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import mongoose from "mongoose";
 import { binModel, organizationModel } from "../models/models.js";
 import { registerDevice } from "../service/deviceRegistrationService.js";
@@ -29,6 +30,13 @@ export async function registerDeviceOverHttps(req, res) {
     }
 }
 
+// Whether two device keys are the same, in constant time.
+function sameKey(stored, sent) {
+    const a = Buffer.from(String(stored ?? ""));
+    const b = Buffer.from(sent);
+    return a.length > 0 && a.length === b.length && timingSafeEqual(a, b);
+}
+
 // A device the broker refused asks whether it still exists (its MAC and
 // device key): 200 when its bin is there with that key, 410 when its bin was
 // deleted (it then resets and opens its setup page), 403 when the MAC is
@@ -42,7 +50,7 @@ export async function deviceStatus(req, res) {
     try {
         const bin = await binModel.findOne({ macAddress: mac }, { deviceKey: 1 }).lean();
         if (!bin) return res.status(410).json({ status: "deleted" });
-        if (bin.deviceKey !== deviceKey) return res.status(403).json({ message: "Wrong device key." });
+        if (!sameKey(bin.deviceKey, deviceKey)) return res.status(403).json({ message: "Wrong device key." });
         return res.status(200).json({ status: "active" });
     } catch (error) {
         console.error("Device status check failed:", error);

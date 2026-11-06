@@ -14,7 +14,9 @@ export async function handleMqttMessage(topic, payload) {
 
     const mac = parts[1];
     const field = parts[3];
-    console.log(`Received message for bin ${mac} on field ${field}:`, payload);
+    // The device key is the device's password: it never goes to the logs.
+    const { deviceKey, ...logged } = payload ?? {};
+    console.log(`Received message for bin ${mac} on field ${field}:`, deviceKey === undefined ? logged : { ...logged, deviceKey: "[hidden]" });
     switch (field) {
         case "log":
             await handleDeviceLog(mac, payload);

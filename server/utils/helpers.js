@@ -3,15 +3,16 @@ import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import mongoose from 'mongoose'
 import {
-    MAX_LAST_AWAKE_SECONDS, MINUTE_MS, OTP_EXPIRY_MINUTES, OTP_LENGTH, PASSWORD_HASH_ROUNDS, RANDOM_TOKEN_BYTES,
+    DEFAULT_PAGE_SIZE, MAX_LAST_AWAKE_SECONDS, MAX_PAGE_SIZE, MINUTE_MS, OTP_EXPIRY_MINUTES, OTP_LENGTH, PASSWORD_HASH_ROUNDS, RANDOM_TOKEN_BYTES,
     REPORT_MESSAGE_MAX_LENGTH, ROLES,
 } from './constants.js'
 
+// A recovery code of random digits (crypto.randomInt: Math.random can be predicted
+// from codes seen before).
 export async function generateOTP(expiryMinutes = OTP_EXPIRY_MINUTES, length = OTP_LENGTH) {
     let otp = '';
-    const digits = '0123456789';
     for (let i = 0; i < length; i++) {
-        otp += digits[Math.floor(Math.random() * digits.length)];
+        otp += String(crypto.randomInt(10));
     }
     const expiresAt = new Date(Date.now() + expiryMinutes * MINUTE_MS);
 
@@ -69,6 +70,22 @@ export function generateRandomToken(bytes = RANDOM_TOKEN_BYTES) {
 
 // Matches real bins, including documents created before the kind field existed.
 export const BINS_ONLY_FILTER = Object.freeze({ kind: { $ne: "gateway" } });
+
+// A list's page size from ?limit: DEFAULT_PAGE_SIZE without one, never above MAX_PAGE_SIZE.
+export function pageLimit(limit) {
+    const size = Math.floor(Number(limit));
+    return Number.isFinite(size) && size > 0 ? Math.min(size, MAX_PAGE_SIZE) : DEFAULT_PAGE_SIZE;
+}
+
+// Text put into an HTML page or email as text, not markup.
+export function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, char => `&#${char.charCodeAt(0)};`);
+}
+
+// What a user typed, matched as plain text inside a $regex (no pattern of their own).
+export function escapeRegex(text) {
+    return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 export function appendFilter(baseQuery, condition, field, value) {
     return condition ? { ...baseQuery, [field]: value } : baseQuery

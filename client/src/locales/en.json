@@ -1663,7 +1663,6 @@
       }
     },
     "binCard": {
-      "deviceKey": "Device Access Key",
       "ownerId": "Owner ID",
       "location": "Location",
       "scaleUncalibrated": "Scale not calibrated",
@@ -1990,7 +1989,7 @@
     "failedToUpdateStatus": "Failed to update status.",
     "updatedOrgAndManagerSuccessfully": "Updated organization and manager successfully.",
     "failedToUpdateOrgAndManager": "Failed to update organization and manager.",
-    "forgotPasswordEmailSent": "Password recovery email sent successfully, please check your inbox.",
+    "forgotPasswordEmailSent": "If this address has an account, we sent it a recovery code. Please check your inbox.",
     "failedToSendForgotPasswordEmail": "Failed to send password recovery email, please try again.",
     "verificationCodeInvalid": "Invalid verification code, please try again.",
     "verificationCodeValid": "Verification code is valid, you can now reset your password.",

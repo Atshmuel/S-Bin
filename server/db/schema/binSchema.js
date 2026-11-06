@@ -14,10 +14,13 @@ export const binSchema = new mongoose.Schema({
         enum: ["bin", "gateway"],
         default: "bin",
     },
+    // The device's password on the broker: never read back unless asked for
+    // (+deviceKey or a projection naming it). Aggregations leave it out themselves.
     deviceKey: {
         type: String,
         required: true,
         unique: true,
+        select: false,
     },
     // Created from a reading a gateway relayed: a leaf whose device key it never
     // got. Only such a bin can be taken over by a registration with its MAC (a
