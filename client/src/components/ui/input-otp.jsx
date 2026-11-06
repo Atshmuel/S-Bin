@@ -13,8 +13,10 @@ const InputOTP = React.forwardRef(({ className, containerClassName, ...props }, 
 ))
 InputOTP.displayName = "InputOTP"
 
+// A code reads left to right in Hebrew too, so the first digit (and the
+// rounded corner) stays on the left.
 const InputOTPGroup = React.forwardRef(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("flex items-center", className)} {...props} />
+  <div ref={ref} dir="ltr" className={cn("flex items-center", className)} {...props} />
 ))
 InputOTPGroup.displayName = "InputOTPGroup"
 
