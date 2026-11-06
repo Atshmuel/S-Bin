@@ -10,6 +10,7 @@ import { useLogs } from "@/hooks/bins/binLogs/useBinLogs";
 import OrganizationSelect from "@/components/OrganizationSelect";
 import { useSelectedOrg } from "@/hooks/organizations/useSelectedOrg";
 import { useTranslation } from "react-i18next";
+import ExportLogsButton from "@/components/binLogs/ExportLogsButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 function AllLogs() {
@@ -163,7 +164,10 @@ function AllLogs() {
     ]
     return (
         <div className="flex flex-col gap-4">
-            <OrganizationSelect />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <OrganizationSelect />
+                <ExportLogsButton search={searchTerm} org={selectedOrgId ?? undefined} />
+            </div>
             <DataTable columns={columns} data={allLogs ?? []} isLoading={isLoadingLogs} error={logsError} title={t('pages.logList.title')} manualPagination={true} pageCount={pageCount} pagination={pagination} onPaginationChange={setPagination} manualFiltering={true} onSearchChange={handleSearchChange} manualSorting={true} onSortChange={handleSortChange} onRowClick={(log) => navigate(`/bins/logs/${log._id}`)} />
         </div >
     )

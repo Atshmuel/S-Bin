@@ -207,6 +207,8 @@ export const SERVICE_INTERVAL_DAYS = 30;
 
 // Lists and routes.
 export const DEFAULT_PAGE_SIZE = 10;
+// How many logs a CSV export names and writes at a time.
+export const EXPORT_BATCH_SIZE = 1000;
 export const RECENT_LOGS_HOURS = 24;
 export const LOG_TYPES_DAYS = 30;
 // An organization's garbage trucks, which its daily routes are planned for.

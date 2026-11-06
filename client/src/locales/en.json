@@ -1941,6 +1941,14 @@
           "content": "We may suspend or terminate your access to the Services if you violate these Terms or if required by law. Upon termination, your right to use the Services will cease immediately."
         }
       }
+    },
+    "exportLogs": {
+      "button": "Export CSV",
+      "title": "Export the logs",
+      "description": "The logs of the list as shown (its search and bin), newest first, for the period you choose, as a CSV file.",
+      "period": "Period",
+      "confirm": "Export",
+      "failed": "Could not export the logs"
     }
   },
   "toasts": {

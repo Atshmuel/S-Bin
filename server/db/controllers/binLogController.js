@@ -2,7 +2,8 @@ import mongoose from 'mongoose';
 import { appendFilter, healthRank, listSortStages, receivedAtOf, scopeToOrganization } from '../../utils/helpers.js';
 import { binLogModel, binModel, deviceDiagnosticModel } from '../models/models.js'
 import { verifyBinOwner } from '../service/sharedService.js';
-import { DEFAULT_PAGE_SIZE, ROLES } from "../../utils/constants.js";
+import { ANALYTICS_RANGES_DAYS, DAY_MS, DEFAULT_PAGE_SIZE, DEFAULT_RANGE_DAYS, EXPORT_BATCH_SIZE, ROLES } from "../../utils/constants.js";
+import { csvRow } from '../../utils/csv.js';
 
 // The logs page's sortable columns (see listSortStages). The plain fields have
 // indexes, so a page is read in order; the ranks are computed per log.
@@ -14,6 +15,31 @@ const LOG_SORT_FIELDS = Object.freeze({
     severity: healthRank('$severity'),
     health: healthRank('$health'),
 });
+
+// The exported file's columns: its header and what each log (and its bin) gives.
+const LOG_EXPORT_COLUMNS = Object.freeze([
+    ['bin', (log, bin) => bin?.binName],
+    ['kind', (log, bin) => bin?.kind],
+    ['time_utc', log => log.createdAt],
+    ['received_utc', log => receivedAtOf(log._id)],
+    ['severity', log => log.severity],
+    ['fill_percent', log => log.newLevel],
+    ['weight_kg', log => log.weight],
+    ['battery_percent', log => log.battery],
+    ['health', log => log.health],
+    ['faults', log => log.faults?.map(fault => fault.code).join(' ')],
+    ['source', log => log.source],
+    ['connection', log => log.connection],
+    ['hops', log => log.hops],
+    ['rssi_dbm', log => log.rssi],
+    ['message', log => log.message],
+]);
+
+// The log fields the export reads (the columns above, and what they are made from).
+const LOG_EXPORT_FIELDS = Object.freeze([
+    'binId', 'createdAt', 'severity', 'newLevel', 'weight', 'battery', 'health', 'faults',
+    'source', 'connection', 'hops', 'rssi', 'message',
+]);
 
 // The gateway and the relaying leaf a log came through, by name; only bins of the
 // organization the log's own bin is in.
@@ -81,34 +107,40 @@ export async function getBinLog(req, res) {
     }
 }
 
+// The logs a request asks for: one bin's (if the user may see it), else those
+// of the user's bins, narrowed to a fill level by ?search. `error` says why not.
+async function logsFilterOf(req) {
+    const { role } = req.user
+    const searchRaw = req.query.search;
+    const search = (searchRaw !== undefined && searchRaw !== "") ? Number(searchRaw) : NaN;
+    const filter = {};
+    const { binId } = req.query;
+    if (binId !== undefined) {
+        if (!mongoose.Types.ObjectId.isValid(binId)) {
+            return { error: { status: 400, message: `Invalid binId: '${binId}'` } };
+        }
+        if (!await binModel.exists(scopeToOrganization({ _id: new mongoose.Types.ObjectId(binId) }, req.user))) {
+            return { error: { status: 404, message: 'Bin not found.' } };
+        }
+        filter.binId = new mongoose.Types.ObjectId(binId);
+    } else if (role !== ROLES.OWNER || req.user.selectedOrg) {
+        const bins = await binModel.find(scopeToOrganization({}, req.user), { _id: 1 }).lean();
+        filter.binId = { $in: bins.map(bin => bin._id) };
+    }
+    if (!isNaN(search)) filter.newLevel = search;
+    return { filter };
+}
+
 export async function getAllLogs(req, res) {
-    const { org: ownerId, role } = req.user
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Number(req.query.limit) || DEFAULT_PAGE_SIZE;
     const skip = (page - 1) * limit;
 
-    const searchRaw = req.query.search;
-    const search = (searchRaw !== undefined && searchRaw !== "") ? Number(searchRaw) : NaN;
-
     try {
         // Filter and page the logs first, then name only the page's bins:
         // joining every log to its bin before sorting does not fit in memory.
-        const filter = {};
-        // One bin's logs (its page), if the user may see that bin.
-        const { binId } = req.query;
-        if (binId !== undefined) {
-            if (!mongoose.Types.ObjectId.isValid(binId)) {
-                return res.status(400).json({ message: `Invalid binId: '${binId}'` });
-            }
-            if (!await binModel.exists(scopeToOrganization({ _id: new mongoose.Types.ObjectId(binId) }, req.user))) {
-                return res.status(404).json({ message: 'Bin not found.' });
-            }
-            filter.binId = new mongoose.Types.ObjectId(binId);
-        } else if (role !== ROLES.OWNER || req.user.selectedOrg) {
-            const bins = await binModel.find(scopeToOrganization({}, req.user), { _id: 1 }).lean();
-            filter.binId = { $in: bins.map(bin => bin._id) };
-        }
-        if (!isNaN(search)) filter.newLevel = search;
+        const { filter, error } = await logsFilterOf(req);
+        if (error) return res.status(error.status).json({ message: error.message });
 
         const [pageLogs, total] = await Promise.all([
             binLogModel.aggregate([
@@ -133,6 +165,58 @@ export async function getAllLogs(req, res) {
 
         res.status(201).json({ logs, total })
     } catch (error) {
+        res.status(500).json({ message: error?.message || error })
+    }
+}
+
+// The logs the page lists (its search and bin, not its order), newest first, as a CSV file: those
+// of the last ?days (one of ANALYTICS_RANGES_DAYS), written as they are read.
+export async function exportLogs(req, res) {
+    try {
+        const { filter, error } = await logsFilterOf(req);
+        if (error) return res.status(error.status).json({ message: error.message });
+        const days = ANALYTICS_RANGES_DAYS.includes(Number(req.query.days)) ? Number(req.query.days) : DEFAULT_RANGE_DAYS;
+        filter.createdAt = { $gte: new Date(Date.now() - days * DAY_MS) };
+
+        res.set({
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': `attachment; filename="logs-${new Date().toISOString().slice(0, 10)}.csv"`,
+        });
+        // The byte order mark makes Excel read the names as UTF-8 (Hebrew).
+        res.write('\uFEFF' + csvRow(LOG_EXPORT_COLUMNS.map(([header]) => header)));
+        const cursor = binLogModel.aggregate([
+            { $match: filter },
+            // Newest first, read off the time index: no other order, so no sort of the whole set.
+            { $sort: { createdAt: -1 } },
+            // Only the columns: the diagnostics and the rest stay in the database.
+            { $project: Object.fromEntries(LOG_EXPORT_FIELDS.map(field => [field, 1])) },
+        ]).cursor();
+
+        // The bins are named a batch at a time, only those the logs are of.
+        const byId = new Map();
+        const writeBatch = async (batch) => {
+            const unknown = [...new Set(batch.map(log => String(log.binId)))].filter(id => !byId.has(id));
+            if (unknown.length > 0) {
+                const bins = await binModel.find(scopeToOrganization({ _id: { $in: unknown } }, req.user), { binName: 1, kind: 1 }).lean();
+                for (const bin of bins) byId.set(String(bin._id), bin);
+            }
+            for (const log of batch) {
+                res.write(csvRow(LOG_EXPORT_COLUMNS.map(([, valueOf]) => valueOf(log, byId.get(String(log.binId))))));
+            }
+        };
+        let batch = [];
+        for await (const log of cursor) {
+            batch.push(log);
+            if (batch.length >= EXPORT_BATCH_SIZE) {
+                await writeBatch(batch);
+                batch = [];
+            }
+        }
+        await writeBatch(batch);
+        res.end();
+    } catch (error) {
+        // Part of the file may be sent already; then the connection is all there is to end.
+        if (res.headersSent) return res.destroy(error);
         res.status(500).json({ message: error?.message || error })
     }
 }

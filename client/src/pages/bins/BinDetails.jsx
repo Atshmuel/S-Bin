@@ -1,4 +1,5 @@
 import DataTable from "@/components/DataTable"
+import ExportLogsButton from "@/components/binLogs/ExportLogsButton"
 import EmptyCard from "@/components/EmptyCard"
 import BinDeviceDetails from "@/components/bins/BinDeviceDetails"
 import BinMaintenanceDetails from "@/components/bins/BinMaintenanceDetails"
@@ -315,6 +316,9 @@ function BinDetails() {
                                                 <CardDescription>{t("pages.binDetails.logsTable.description")}</CardDescription>
                                             </CardHeader>
                                             <CardContent>
+                                                <div className="mb-3 flex justify-end">
+                                                    <ExportLogsButton search={logsSearch} binId={id} />
+                                                </div>
                                                 <DataTable columns={logsColumns} isLoading={isLoadingLogs} data={allLogs ?? []} maxLength={BIN_LOGS_PAGE_SIZE} error={logsError}
                                                     manualPagination pageCount={logsPageCount} pagination={logsPagination} onPaginationChange={setLogsPagination}
                                                     manualFiltering onSearchChange={handleLogsSearch} manualSorting onSortChange={handleLogsSort} onRowClick={(log) => navigate(`/bins/logs/${log._id}`)} />
