@@ -1,15 +1,19 @@
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useBinStatusOV } from "@/hooks/overviews/useBinStatusOV"
 import { useLogsTypeOV } from "@/hooks/overviews/useLogsTypeOV"
 import AIInsights from "./AIInsights"
-import { BatteryOutlookCard, CollectionsTrendCard, ConnectivityCard, CostsCard, FullnessDistributionCard, FullSoonCard, HealthCausesCard, ProblemBinsCard, RoutesCard, WasteCard } from "@/components/analytics/FleetCards"
+import { BatteryOutlookCard, CollectionsTrendCard, ConnectivityCard, CostsCard, FullnessDistributionCard, FullSoonCard, HealthCausesCard, ProblemBinsCard, RoutesCard, WasteCard, WeekdaysCard } from "@/components/analytics/FleetCards"
 import { Bar, BarChart, CartesianGrid, Label, Pie, PieChart, XAxis } from "recharts"
 import { useAppSide } from "@/hooks/useAppSide"
 import { useTranslation } from "react-i18next"
 import { formatDate } from "@/utils/helpers"
 import OrganizationSelect from "@/components/OrganizationSelect"
+import RangeSelect from "@/components/analytics/RangeSelect"
+import { AnalyticsRangeContext } from "@/hooks/analytics/useAnalyticsRange"
+import { DEFAULT_ANALYTICS_RANGE_DAYS } from "@/utils/constants"
 import { useMe } from "@/hooks/users/auth/useMe"
 
 function Analytics() {
@@ -49,6 +53,7 @@ function Analytics() {
 
     const { isRight } = useAppSide()
     const { isOwner, isAdmin } = useMe()
+    const [range, setRange] = useState(DEFAULT_ANALYTICS_RANGE_DAYS)
 
     const { binsCount, isLoadingStatusOV, statusOVError } = useBinStatusOV()
     const { logTypes, isLoadingLogTypeOV, logTypeOVError } = useLogsTypeOV()
@@ -59,12 +64,14 @@ function Analytics() {
 
 
     return (
+        <AnalyticsRangeContext.Provider value={range}>
         <div className="flex flex-col gap-6">
-            {isOwner && (
-                <div className="flex justify-end">
-                    <OrganizationSelect />
-                </div>
-            )}
+            {/* One period for every card that covers one; the others show the fleet as it is now. */}
+            <div className="grid grid-cols-2 items-center gap-3 sm:flex sm:flex-wrap sm:justify-end">
+                <span className="col-span-2 text-sm text-muted-foreground">{t("pages.analytics.rangeHint")}</span>
+                <RangeSelect value={range} onChange={setRange} className={isOwner ? "w-full sm:w-[160px]" : "w-full sm:w-[160px] col-span-2"} />
+                {isOwner && <OrganizationSelect className="w-full sm:w-56" />}
+            </div>
             <AIInsights />
             {/* Each card below makes its own request, once it scrolls into view. */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -137,6 +144,7 @@ function Analytics() {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <CollectionsTrendCard />
                 <WasteCard />
+                <WeekdaysCard />
                 {/* The collection routes: across the row, for the drivers' table. */}
                 <RoutesCard className="lg:col-span-2" />
                 <ProblemBinsCard className="lg:col-span-2" />
@@ -203,6 +211,7 @@ function Analytics() {
                 </Card>
             </div>
         </div>
+        </AnalyticsRangeContext.Provider>
     )
 }
 

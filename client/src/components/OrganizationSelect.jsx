@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { Building2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAppSide } from "@/hooks/useAppSide"
@@ -10,7 +11,7 @@ const ALL = "all"
 
 // The owner's pick of the organization the dashboard and the analytics page
 // show; nothing for other users, who only see their own.
-function OrganizationSelect() {
+function OrganizationSelect({ className }) {
     const { t } = useTranslation()
     const { isRight } = useAppSide()
     const { selectedOrgId, setSelectedOrgId, isOwner } = useSelectedOrg()
@@ -23,7 +24,7 @@ function OrganizationSelect() {
     return (
         <Select isRight={isRight} value={known ? selectedOrgId : ALL}
             onValueChange={(value) => setSelectedOrgId(value === ALL ? null : value)}>
-            <SelectTrigger isRight={isRight} className="w-56 bg-background" aria-label={t("components.organizationSelect.label")}>
+            <SelectTrigger isRight={isRight} className={cn("w-56 bg-background", className)} aria-label={t("components.organizationSelect.label")}>
                 <Building2 />
                 <SelectValue />
             </SelectTrigger>

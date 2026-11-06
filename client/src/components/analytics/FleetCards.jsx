@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { formatDistanceToNow } from "date-fns"
@@ -6,6 +5,7 @@ import { he } from "date-fns/locale"
 import { Bar, BarChart, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { useAppSide } from "@/hooks/useAppSide"
+import { useAnalyticsRange } from "@/hooks/analytics/useAnalyticsRange"
 import { useOverviewSection } from "@/hooks/analytics/useOverviewSection"
 import { useInView } from "@/hooks/use-in-view"
 import { useSelectedOrg } from "@/hooks/organizations/useSelectedOrg"
@@ -14,7 +14,6 @@ import { useThresholds } from "@/hooks/useThresholds"
 import { formatDate } from "@/utils/helpers"
 import { formatMoney } from "@/utils/money"
 import { routeDuration } from "@/utils/routes"
-import RangeSelect from "./RangeSelect"
 import SectionCard, { Muted } from "./SectionCard"
 
 // The analytics page's sections. Each makes its own request, once it scrolls
@@ -22,9 +21,18 @@ import SectionCard, { Muted } from "./SectionCard"
 
 const CHART_CLASS = "aspect-auto h-[220px] w-full"
 
-function useSection(section, range) {
+// `ranged`: the section covers a period, the one chosen at the top of the page.
+function useSection(section, ranged = false) {
     const [ref, inView] = useInView()
-    return { ref, ...useOverviewSection(section, { range, enabled: inView }) }
+    const range = useAnalyticsRange()
+    return { ref, ...useOverviewSection(section, { range: ranged ? range : undefined, enabled: inView }) }
+}
+
+// On a card that follows the page's period: which one it shows.
+function RangeTag() {
+    const { t } = useTranslation()
+    const range = useAnalyticsRange()
+    return <span className="shrink-0 text-xs text-muted-foreground">{t("pages.binDetails.areaChart.lastDays", { count: range })}</span>
 }
 
 function useDateFormats() {
@@ -133,10 +141,44 @@ export function FullnessDistributionCard() {
     )
 }
 
+// The emptyings by day of the week: how many a day of each weekday had on
+// average, and how full the bins were before them, to pick the days to collect.
+export function WeekdaysCard() {
+    const { t, i18n } = useTranslation()
+    const { isRight } = useAppSide()
+    const { ref, data, isLoading, error } = useSection("weekdays", true)
+    const config = {
+        avgCollections: { label: t("pages.analytics.sections.weekdays.perDay"), color: "var(--chart-2)" },
+        avgFullnessBefore: { label: t("pages.analytics.sections.collections.fullness"), color: "var(--chart-1)" },
+    }
+    // 2024-01-07 was a Sunday; the names come in the page's language.
+    const names = Array.from({ length: 7 }, (_, weekday) =>
+        new Date(Date.UTC(2024, 0, 7 + weekday)).toLocaleDateString(i18n.language, { weekday: "short", timeZone: "UTC" }))
+    const weekdays = (data?.weekdays ?? []).map(entry => ({ ...entry, name: names[entry.weekday] }))
+    return (
+        <SectionCard ref={ref} title={t("pages.analytics.sections.weekdays.title")}
+            description={t("pages.analytics.sections.weekdays.description")}
+            action={<RangeTag />}
+            isLoading={isLoading} error={error}>
+            <ChartContainer config={config} className={CHART_CLASS}>
+                <ComposedChart data={weekdays}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} reversed={!isRight} />
+                    <YAxis yAxisId="count" allowDecimals={false} hide />
+                    <YAxis yAxisId="percent" domain={[0, 100]} hide />
+                    <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
+                    <Bar yAxisId="count" dataKey="avgCollections" fill="var(--color-avgCollections)" radius={4} />
+                    <Line yAxisId="percent" dataKey="avgFullnessBefore" stroke="var(--color-avgFullnessBefore)" strokeWidth={2} connectNulls />
+                    <ChartLegend content={<ChartLegendContent />} />
+                </ComposedChart>
+            </ChartContainer>
+        </SectionCard>
+    )
+}
+
 export function CollectionsTrendCard() {
     const { t } = useTranslation()
-    const [range, setRange] = useState(30)
-    const { ref, data, isLoading, error } = useSection("collections", range)
+    const { ref, data, isLoading, error } = useSection("collections", true)
     const config = {
         count: { label: t("pages.analytics.sections.collections.count"), color: "var(--chart-2)" },
         avgFullnessBefore: { label: t("pages.analytics.sections.collections.fullness"), color: "var(--chart-1)" },
@@ -146,7 +188,7 @@ export function CollectionsTrendCard() {
             description={data && data.total > 0
                 ? t("pages.analytics.sections.collections.summary", { count: data.total, percent: data.avgFullnessBefore ?? "-" })
                 : t("pages.analytics.sections.collections.description")}
-            action={<RangeSelect value={range} onChange={setRange} className="w-[140px]" />}
+            action={<RangeTag />}
             isLoading={isLoading} error={error}>
             <DailyChart data={data?.daily} config={config}>
                 <YAxis yAxisId="count" allowDecimals={false} hide />
@@ -160,14 +202,13 @@ export function CollectionsTrendCard() {
 
 export function WasteCard() {
     const { t } = useTranslation()
-    const [range, setRange] = useState(30)
-    const { ref, data, isLoading, error } = useSection("waste", range)
+    const { ref, data, isLoading, error } = useSection("waste", true)
     return (
         <SectionCard ref={ref} title={t("pages.analytics.sections.waste.title")}
             description={data?.weighedCollections > 0
                 ? t("pages.analytics.sections.waste.summary", { kg: data.totalKg })
                 : t("pages.analytics.sections.waste.description")}
-            action={<RangeSelect value={range} onChange={setRange} className="w-[140px]" />}
+            action={<RangeTag />}
             isLoading={isLoading} error={error}>
             <DailyChart data={data?.daily} config={{ kg: { label: t("pages.analytics.sections.waste.kg"), color: "var(--chart-3)" } }}>
                 <YAxis allowDecimals={false} hide />
@@ -260,15 +301,14 @@ const HEALTH_CAUSES = ["fillSensor", "battery", "scale", "gps", "connectivity"]
 
 export function HealthCausesCard() {
     const { t } = useTranslation()
-    const [range, setRange] = useState(30)
-    const { ref, data, isLoading, error } = useSection("health-causes", range)
+    const { ref, data, isLoading, error } = useSection("health-causes", true)
     const config = Object.fromEntries(HEALTH_CAUSES.map((cause, i) => [
         cause, { label: t(`pages.analytics.sections.healthCauses.${cause}`), color: `var(--chart-${i + 1})` },
     ]))
     return (
         <SectionCard ref={ref} title={t("pages.analytics.sections.healthCauses.title")}
             description={t("pages.analytics.sections.healthCauses.description")}
-            action={<RangeSelect value={range} onChange={setRange} className="w-[140px]" />}
+            action={<RangeTag />}
             isLoading={isLoading} error={error}>
             <DailyChart data={data?.daily} config={config}>
                 <YAxis allowDecimals={false} hide />
@@ -285,8 +325,7 @@ export function HealthCausesCard() {
 // the time planned, and (owners and admins) each driver's figures.
 export function RoutesCard({ className }) {
     const { t } = useTranslation()
-    const [range, setRange] = useState(30)
-    const { ref, data, isLoading, error } = useSection("routes", range)
+    const { ref, data, isLoading, error } = useSection("routes", true)
     const config = {
         done: { label: t("pages.analytics.sections.routes.done"), color: "var(--chart-2)" },
         skipped: { label: t("pages.analytics.sections.routes.skipped"), color: "var(--chart-4)" },
@@ -297,7 +336,7 @@ export function RoutesCard({ className }) {
             description={data && data.routes > 0
                 ? t("pages.analytics.sections.routes.summary", { count: data.finished, routes: data.routes })
                 : t("pages.analytics.sections.routes.description")}
-            action={<RangeSelect value={range} onChange={setRange} className="w-[140px]" />}
+            action={<RangeTag />}
             isLoading={isLoading} error={error}>
             {data && (
                 <div className="flex flex-col gap-6">
@@ -357,15 +396,14 @@ export function RoutesCard({ className }) {
 // health problem counts once; the columns show what the score is made of.
 export function ProblemBinsCard({ className }) {
     const { t } = useTranslation()
-    const [range, setRange] = useState(30)
-    const { ref, data, isLoading, error } = useSection("problem-bins", range)
+    const { ref, data, isLoading, error } = useSection("problem-bins", true)
     const text = (name, values) => t(`pages.analytics.sections.problemBins.${name}`, values)
     const reasonsText = (reasons) => Object.entries(reasons)
         .map(([reason, count]) => `${reason === "none" ? text("noReason") : t(`pages.routes.skipReasons.${reason}`)} ${count}`)
         .join(" · ")
     return (
         <SectionCard ref={ref} className={className} title={text("title")} description={text("description")}
-            action={<RangeSelect value={range} onChange={setRange} className="w-[140px]" />}
+            action={<RangeTag />}
             isLoading={isLoading} error={error}>
             {data && (data.bins.length > 0 ? (
                 // Scrolls inside the card, header kept, so the list never pushes the charts below it away.
@@ -409,8 +447,7 @@ export function CostsCard({ className }) {
     const { t, i18n } = useTranslation()
     const { me, isOwner } = useMe()
     const { selectedOrgId } = useSelectedOrg()
-    const [range, setRange] = useState(30)
-    const { ref, data, isLoading, error } = useSection("costs", range)
+    const { ref, data, isLoading, error } = useSection("costs", true)
     const money = value => formatMoney(value, i18n.language)
     const number = (value, digits = 0) => value === null || value === undefined ? "—" : value.toLocaleString(i18n.language, { maximumFractionDigits: digits })
     const config = {
@@ -425,7 +462,7 @@ export function CostsCard({ className }) {
             description={data?.saved?.money != null
                 ? t("pages.analytics.sections.costs.summary", { saved: money(data.saved.money), net: money(data.saved.net) })
                 : t("pages.analytics.sections.costs.description")}
-            action={<RangeSelect value={range} onChange={setRange} className="w-[140px]" />}
+            action={<RangeTag />}
             isLoading={isLoading} error={error}>
             {data && (
                 <div className="flex flex-col gap-6">

@@ -254,3 +254,29 @@ export function rankProblemBins(bins, stopGroups, problemDays, limit) {
         .sort((a, b) => b.score - a.score || String(a.binName).localeCompare(String(b.binName)) || String(a._id).localeCompare(String(b._id)))
         .slice(0, limit);
 }
+
+// A range's daily emptyings folded into the seven days of the week (0 Sunday
+// to 6 Saturday): how many days of each were in the range, the emptyings on
+// them, the average per such day, and the average fullness before an emptying.
+// `daily` is [{ day: 'YYYY-MM-DD', collections, fullnessBeforeSum, fullnessBeforeCount }],
+// the days already in the organization's time zone.
+export function weekdayTotals(daily) {
+    const weekdays = Array.from({ length: 7 }, (_, weekday) => ({
+        weekday, days: 0, collections: 0, fullnessBeforeSum: 0, fullnessBeforeCount: 0,
+    }));
+    for (const entry of daily) {
+        // The date itself, not an instant: UTC keeps it from shifting.
+        const total = weekdays[new Date(`${entry.day}T00:00:00Z`).getUTCDay()];
+        total.days += 1;
+        total.collections += entry.collections;
+        total.fullnessBeforeSum += entry.fullnessBeforeSum;
+        total.fullnessBeforeCount += entry.fullnessBeforeCount;
+    }
+    return weekdays.map(total => ({
+        weekday: total.weekday,
+        days: total.days,
+        collections: total.collections,
+        avgCollections: total.days > 0 ? Math.round(total.collections / total.days * 10) / 10 : null,
+        avgFullnessBefore: total.fullnessBeforeCount > 0 ? Math.round(total.fullnessBeforeSum / total.fullnessBeforeCount) : null,
+    }));
+}

@@ -2,7 +2,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     batteryDaysLeft, binFullness, collectionDueAt, dayKey, daysBetween, detectCollections, fillRatePerDay,
-    fullnessPercent, healthCauses, isValidTimeZone, rankProblemBins, reportReliability, timingPoints, trendPerDay,
+    fullnessPercent, healthCauses, isValidTimeZone, rankProblemBins, reportReliability, weekdayTotals, timingPoints, trendPerDay,
 } from '../utils/analytics.js';
 import { DAY_MS, FULLNESS_CRITICAL_PERCENT, HOUR_MS } from '../utils/constants.js';
 
@@ -221,5 +221,20 @@ describe('rankProblemBins', () => {
     test('leaves out bins with no trouble and bins outside the scope, and cuts the list', () => {
         const ranked = rankProblemBins(bins, [{ binId: 'zzz', status: 'skipped', count: 9 }], [{ binId: 'a', days: 1 }, { binId: 'b', days: 1 }], 1);
         assert.deepEqual(ranked.map(row => row._id), ['a']);
+    });
+});
+
+describe('weekdayTotals', () => {
+    test('folds days into the days of the week, with averages', () => {
+        // 2026-11-01 is a Sunday, 2026-11-08 the next one, 2026-11-02 a Monday.
+        const totals = weekdayTotals([
+            { day: '2026-11-01', collections: 10, fullnessBeforeSum: 800, fullnessBeforeCount: 10 },
+            { day: '2026-11-08', collections: 20, fullnessBeforeSum: 1400, fullnessBeforeCount: 20 },
+            { day: '2026-11-02', collections: 0, fullnessBeforeSum: 0, fullnessBeforeCount: 0 },
+        ]);
+        assert.equal(totals.length, 7);
+        assert.deepEqual(totals[0], { weekday: 0, days: 2, collections: 30, avgCollections: 15, avgFullnessBefore: 73 });
+        assert.deepEqual(totals[1], { weekday: 1, days: 1, collections: 0, avgCollections: 0, avgFullnessBefore: null });
+        assert.deepEqual(totals[2], { weekday: 2, days: 0, collections: 0, avgCollections: null, avgFullnessBefore: null });
     });
 });

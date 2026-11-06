@@ -736,8 +736,14 @@
             "problemDays": "Days with a problem",
             "rate": "Fills"
           }
+        },
+        "weekdays": {
+          "title": "Emptyings by weekday",
+          "description": "Emptyings on an average day of each weekday, and how full the bins were before them.",
+          "perDay": "Emptyings per day"
         }
-      }
+      },
+      "rangeHint": "The period of the charts that show one:"
     },
     "addBin": {
       "toasts": {

@@ -20,7 +20,7 @@ import {
 import {
     HEALTH_CAUSE_NAMES,
     batteryDaysLeft, binFullness, collectionDueAt, dayKey, daysBetween, detectCollections, fillRatePerDay,
-    FULLNESS_EXPRESSION, fullnessPercent, healthCauses, isValidTimeZone, rangeStart, rankProblemBins, reportReliability, timingPoints, trendPerDay,
+    FULLNESS_EXPRESSION, fullnessPercent, healthCauses, isValidTimeZone, rangeStart, rankProblemBins, reportReliability, timingPoints, trendPerDay, weekdayTotals,
 } from '../../utils/analytics.js'
 
 // Each section of the bin page and the analytics page is its own request, so
@@ -315,6 +315,12 @@ async function collectionsOverview(user, { days, timeZone }) {
         total: total('collections'),
         avgFullnessBefore: averageFullness(total('fullnessBeforeSum'), total('fullnessBeforeCount')),
     };
+}
+
+// The range's emptyings by day of the week (see weekdayTotals), from the same
+// daily statistics as the emptyings chart.
+async function weekdaysOverview(user, { days, timeZone }) {
+    return { weekdays: weekdayTotals(await scopedDays(user, days, timeZone)) };
 }
 
 async function wasteOverview(user, { days, timeZone }) {
@@ -618,6 +624,7 @@ const OVERVIEW_SECTIONS = {
     'full-soon': fullSoon,
     'fullness-distribution': fullnessDistribution,
     collections: collectionsOverview,
+    weekdays: weekdaysOverview,
     waste: wasteOverview,
     battery: batteryOverview,
     connectivity: connectivityOverview,

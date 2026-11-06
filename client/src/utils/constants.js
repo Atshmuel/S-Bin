@@ -147,6 +147,7 @@ export const ROUTE_SKIP_REASONS = Object.freeze(["already_empty", "no_access", "
 // apart: lists refresh once a minute, a dashboard left open every two, and
 // nothing refreshes while the tab is hidden.
 export const ANALYTICS_RANGES_DAYS = Object.freeze([7, 30, 90])
+export const DEFAULT_ANALYTICS_RANGE_DAYS = 30
 export const ANALYTICS_STALE_MS = 5 * MINUTE_MS
 export const DASHBOARD_REFRESH_MS = 2 * MINUTE_MS
 export const LIST_REFRESH_MS = MINUTE_MS
