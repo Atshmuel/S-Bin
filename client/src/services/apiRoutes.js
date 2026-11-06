@@ -54,8 +54,9 @@ export function undoStopDone({ id, binId }) {
     return request(`${ROUTES_EP}/${id}/stops/${binId}/done`, { method: "DELETE" });
 }
 
-export function skipStop({ id, binId }) {
-    return request(`${ROUTES_EP}/${id}/stops/${binId}/skip`, { method: "POST" });
+// `reason` is one of the server's ROUTE_SKIP_REASONS.
+export function skipStop({ id, binId, reason }) {
+    return request(`${ROUTES_EP}/${id}/stops/${binId}/skip`, { method: "POST", body: reason ? { reason } : {} });
 }
 
 export function undoSkipStop({ id, binId }) {

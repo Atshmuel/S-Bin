@@ -445,7 +445,24 @@
         "toRoute": "למסלול",
         "reordered": "העצירות שנותרו סודרו מהמקום שבו אתם נמצאים.",
         "skipTitle": "לדלג על {{name}}?",
-        "skipDescription": "הפח יישאר למסלול אחר. השתמשו בזה כשאי אפשר לאסוף אותו (חסום, חסר)."
+        "skipDescription": "הפח יישאר למסלול אחר. השתמשו בזה כשאי אפשר לאסוף אותו (חסום, חסר).",
+        "skipReason": "מה הסיבה לדילוג?"
+      },
+      "skipReasons": {
+        "already_empty": "כבר ריק",
+        "no_access": "אין גישה",
+        "blocked": "חסום על ידי רכב",
+        "other": "אחר"
+      },
+      "summary": {
+        "title": "סיכום המסלול",
+        "collected": "נאספו",
+        "collectedLoad": "כ-{{kg}} ק\"ג",
+        "skipped": "דולגו",
+        "noReason": "{{count}} ללא סיבה",
+        "notHandled": "לא טופלו",
+        "verification": "הדיווחים הבאים של הפחים: {{confirmed}} אושרו, {{contradicted}} נסתרו, {{unverified}} לא אומתו.",
+        "closedByDay": "נסגר אוטומטית בסוף היום"
       }
     },
     "dashboard": {

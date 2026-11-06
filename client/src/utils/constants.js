@@ -140,6 +140,8 @@ export const NAV_FOLLOW_ZOOM = 16
 export const NAV_START_POSITION_WAIT_MS = 6 * 1000
 // A stop marked done farther than this from its bin is flagged (never refused).
 export const ROUTE_CLAIM_FAR_METERS = 100
+// Why a driver skips a stop (the server's ROUTE_SKIP_REASONS).
+export const ROUTE_SKIP_REASONS = Object.freeze(["already_empty", "no_access", "blocked", "other"])
 
 // Analytics ranges (days) and how fresh data stays. Devices report hours
 // apart: lists refresh once a minute, a dashboard left open every two, and

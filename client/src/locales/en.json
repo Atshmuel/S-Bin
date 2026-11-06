@@ -435,7 +435,24 @@
         "toRoute": "To the route",
         "reordered": "The stops still to do are ordered from where you are.",
         "skipTitle": "Skip {{name}}?",
-        "skipDescription": "The bin is left for another route. Use this when it cannot be collected (blocked, missing)."
+        "skipDescription": "The bin is left for another route. Use this when it cannot be collected (blocked, missing).",
+        "skipReason": "Why is it skipped?"
+      },
+      "skipReasons": {
+        "already_empty": "Already empty",
+        "no_access": "No access",
+        "blocked": "Blocked by a vehicle",
+        "other": "Other"
+      },
+      "summary": {
+        "title": "Route summary",
+        "collected": "Collected",
+        "collectedLoad": "about {{kg}} kg",
+        "skipped": "Skipped",
+        "noReason": "{{count}} without a reason",
+        "notHandled": "Left untouched",
+        "verification": "The bins' next reports: {{confirmed}} confirmed, {{contradicted}} contradicted, {{unverified}} unverified.",
+        "closedByDay": "Closed automatically at the end of the day"
       }
     },
     "dashboard": {

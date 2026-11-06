@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { OPEN_ROUTE_STATUSES, ROUTE_SOURCES, ROUTE_STATUSES, ROUTE_STOP_STATUSES, ROUTE_TYPES } from "../../utils/constants.js";
+import { OPEN_ROUTE_STATUSES, ROUTE_SKIP_REASONS, ROUTE_SOURCES, ROUTE_STATUSES, ROUTE_STOP_STATUSES, ROUTE_TYPES } from "../../utils/constants.js";
 
 // What a driver said about a stop: who, when, and where their phone was.
 const claimSchema = new mongoose.Schema({
@@ -31,6 +31,7 @@ const stopSchema = new mongoose.Schema({
     status: { type: String, enum: ROUTE_STOP_STATUSES, default: "planned" },
     // When a skipped stop was skipped (Previous undoes whatever came last).
     skippedAt: Date,
+    skipReason: { type: String, enum: ROUTE_SKIP_REASONS },
     claim: { type: claimSchema, default: null },
     verification: { type: verificationSchema, default: null },
 }, { _id: false });

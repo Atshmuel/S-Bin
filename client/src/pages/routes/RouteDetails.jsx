@@ -20,7 +20,7 @@ import { useAppSide } from "@/hooks/useAppSide"
 import { useDeleteRoute, useRoute, useUpdateRoute } from "@/hooks/routes/useRoutes"
 import { useMe } from "@/hooks/users/auth/useMe"
 import { getMeshSettings } from "@/services/apiMeshSettings"
-import { ROUTE_CLAIM_FAR_METERS } from "@/utils/constants"
+import { ROUTE_CLAIM_FAR_METERS, ROUTE_SKIP_REASONS } from "@/utils/constants"
 import { truckName } from "@/utils/orgSettings"
 
 const STOP_VARIANTS = Object.freeze({ planned: "outline", done: "active", skipped: "inactive" })
@@ -70,6 +70,52 @@ function Stat({ label, children, sub, bar }) {
             )}
             {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
         </div>
+    )
+}
+
+// What a finished route came to: what was collected and skipped (and why), what
+// the bins' next reports said, and, for whoever manages the routes, the time.
+function RouteSummary({ route, isAdmin }) {
+    const { t } = useTranslation()
+    const count = (status) => route.stops.filter(stop => stop.status === status).length
+    const done = count("done"), skipped = count("skipped"), untouched = count("planned")
+    const verified = (status) => route.stops.filter(stop => stop.verification?.status === status).length
+    const reasons = ROUTE_SKIP_REASONS
+        .map(reason => [reason, route.stops.filter(stop => stop.status === "skipped" && stop.skipReason === reason).length])
+        .filter(([, number]) => number > 0)
+    const noReason = skipped - reasons.reduce((sum, [, number]) => sum + number, 0)
+    const took = isAdmin && route.startedAt && route.finishedAt
+        ? routeDuration(Math.max(0, (new Date(route.finishedAt) - new Date(route.startedAt)) / 1000), t)
+        : null
+    const planned = routeDuration(route.plannedDurationSeconds ?? route.durationSeconds ?? 0, t)
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-base">{t("pages.routes.summary.title")}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                    <Stat label={t("pages.routes.summary.collected")} sub={t("pages.routes.summary.collectedLoad", { kg: loadedKg(route).toLocaleString() })}>
+                        {t("pages.routes.progress", { done, count: route.stops.length })}
+                    </Stat>
+                    <Stat label={t("pages.routes.summary.skipped")}
+                        sub={[...reasons.map(([reason, number]) => `${t(`pages.routes.skipReasons.${reason}`)} ${number}`),
+                            ...(noReason > 0 ? [t("pages.routes.summary.noReason", { count: noReason })] : [])].join(" · ") || null}>
+                        {skipped}
+                    </Stat>
+                    <Stat label={t("pages.routes.summary.notHandled")}>{untouched}</Stat>
+                    {took && (
+                        <Stat label={t("pages.routes.details.time")} sub={t("pages.routes.details.timePlanned", { planned })}>{took}</Stat>
+                    )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                    {t("pages.routes.summary.verification", {
+                        confirmed: verified("confirmed"), contradicted: verified("contradicted"), unverified: verified("unverified"),
+                    })}
+                    {route.closedByDay && <> · {t("pages.routes.summary.closedByDay")}</>}
+                </p>
+            </CardContent>
+        </Card>
     )
 }
 
@@ -192,6 +238,7 @@ function RouteDetails() {
                     )}
                 </CardContent>
             </Card>
+            {route.status === "finished" && <RouteSummary route={route} isAdmin={isAdmin} />}
             <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                 <div className="h-[60vh] min-h-80"><RouteMap route={route} /></div>
                 <Card className="flex max-h-[60vh] min-h-80 flex-col overflow-hidden">
@@ -211,6 +258,9 @@ function RouteDetails() {
                                                 {t("mapLegend.route.stopRow", { percent: Math.round(stop.fullnessAtPlan ?? 0) })}
                                                 {stop.loadKg != null && <> · {t("mapLegend.route.stopLoad", { kg: stop.loadKg.toLocaleString() })}</>}
                                             </span>
+                                            {stop.status === "skipped" && stop.skipReason && (
+                                                <span className="text-xs text-muted-foreground">{t(`pages.routes.skipReasons.${stop.skipReason}`)}</span>
+                                            )}
                                             {stop.claim && (
                                                 <span className="text-xs text-muted-foreground">
                                                     {t("pages.routes.details.claimed", { time: new Date(stop.claim.at).toLocaleTimeString(i18n.language, { hour: "2-digit", minute: "2-digit" }) })}

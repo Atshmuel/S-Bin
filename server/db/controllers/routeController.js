@@ -5,7 +5,7 @@ import { thresholdsOf } from '../../utils/thresholds.js'
 import { DEFAULT_TIME_ZONE, OPEN_ROUTE_STATUSES, ROLES, ROUTE_STATUSES, ROUTE_TYPES } from '../../utils/constants.js'
 import {
     canDriveRoute, freeTruckUnit, HEALTH_FILTERS, organizationTimeZone, planRoute, releaseRoute, releaseStop, releaseUndone,
-    planOrganizationDay, reorderFromPosition, reserveStop, routeAccessFilter, RouteError, serviceDayOf,
+    planOrganizationDay, reorderFromPosition, reserveStop, routeAccessFilter, RouteError, serviceDayOf, skipReasonOf,
 } from '../service/routeService.js'
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -342,8 +342,10 @@ export async function skipStop(req, res) {
         const stop = stopOf(route, req.params.binId)
         if (!stop) return res.status(404).json({ message: 'The bin is not a stop of this route.' })
         if (stop.status !== 'planned') return res.status(409).json({ message: `The stop is ${stop.status}.` })
+        const skipReason = skipReasonOf(req.body?.reason)
         stop.status = 'skipped'
         stop.skippedAt = new Date()
+        stop.skipReason = skipReason
         await route.save()
         await releaseStop(route._id, stop.binId)
         res.status(200).json({ route: route.toObject() })
@@ -364,6 +366,7 @@ export async function undoSkipStop(req, res) {
         await reserveStop(route, stop.binId)
         stop.status = 'planned'
         stop.skippedAt = undefined
+        stop.skipReason = undefined
         await route.save()
         res.status(200).json({ route: route.toObject() })
     } catch (error) {

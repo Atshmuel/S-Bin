@@ -8,9 +8,11 @@ import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
     AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useAppSide } from "@/hooks/useAppSide"
 import { useDriveRoute, useRoute } from "@/hooks/routes/useRoutes"
-import { NAV_START_POSITION_WAIT_MS } from "@/utils/constants"
+import { NAV_START_POSITION_WAIT_MS, ROUTE_SKIP_REASONS } from "@/utils/constants"
 
 const OPEN = ["planned", "driving"]
 
@@ -24,11 +26,13 @@ function RouteDrive() {
     const { id } = useParams()
     const { t } = useTranslation()
     const navigate = useNavigate()
+    const { isRight } = useAppSide()
     const { route, isLoadingRoute, routeError } = useRoute(id)
     const drive = useDriveRoute()
     const [position, setPosition] = useState(null)
     const [following, setFollowing] = useState(true)
     const [skipping, setSkipping] = useState(null)
+    const [skipReason, setSkipReason] = useState("")
     const stopFollowing = useCallback(() => setFollowing(false), [])
     const isOpen = OPEN.includes(route?.status)
 
@@ -69,7 +73,7 @@ function RouteDrive() {
                 onFollow={() => setFollowing(true)}
                 onDone={(stop) => drive.mutate({ action: "done", id, binId: stop.binId, position: here, accuracyMeters: position?.accuracy })}
                 onUndo={(stop) => drive.mutate({ action: stop.status === "done" ? "undo" : "unskip", id, binId: stop.binId })}
-                onSkip={setSkipping}
+                onSkip={(stop) => { setSkipReason(""); setSkipping(stop) }}
                 onReorder={() => drive.mutate({ action: "start", id, position: here }, { onSuccess: () => toast.success(t("pages.routes.drive.reordered")) })}
                 onStop={() => navigate(`/routes/${id}`)}
                 onFinish={() => drive.mutate({ action: "finish", id }, { onSuccess: () => navigate(`/routes/${id}`) })} />
@@ -79,9 +83,20 @@ function RouteDrive() {
                         <AlertDialogTitle>{t("pages.routes.drive.skipTitle", { name: skipping?.binName })}</AlertDialogTitle>
                         <AlertDialogDescription>{t("pages.routes.drive.skipDescription")}</AlertDialogDescription>
                     </AlertDialogHeader>
+                    {/* Above the dialog (z-1003): the picker opens in its own layer. */}
+                    <Select value={skipReason} onValueChange={setSkipReason}>
+                        <SelectTrigger isRight={isRight} aria-label={t("pages.routes.drive.skipReason")}>
+                            <SelectValue placeholder={t("pages.routes.drive.skipReason")} />
+                        </SelectTrigger>
+                        <SelectContent className="z-[1100]">
+                            {ROUTE_SKIP_REASONS.map(reason => (
+                                <SelectItem isRight={isRight} key={reason} value={reason}>{t(`pages.routes.skipReasons.${reason}`)}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     <AlertDialogFooter>
                         <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => drive.mutate({ action: "skip", id, binId: skipping.binId })}>
+                        <AlertDialogAction disabled={!skipReason} onClick={() => drive.mutate({ action: "skip", id, binId: skipping.binId, reason: skipReason })}>
                             {t("mapLegend.drive.skip")}
                         </AlertDialogAction>
                     </AlertDialogFooter>

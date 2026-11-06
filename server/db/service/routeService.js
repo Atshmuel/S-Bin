@@ -11,7 +11,7 @@ import {
     DEFAULT_REPORT_INTERVAL_MINUTES, DEFAULT_REPORT_START_HOUR, DEFAULT_ROUTE_ENGINE, DEFAULT_TIME_ZONE,
     HOUR_MS, MINUTE_MS, OPEN_ROUTE_STATUSES, ROLES, ROUTE_CLAIM_VERIFY_HOURS, ROUTE_DAY_CLOSE_GRACE_MINUTES,
     ROUTE_ENGINES, ROUTE_FLEET_CANDIDATE_FACTOR, ROUTE_PLAN_ATTEMPTS, ROUTE_PLAN_HORIZON_HOURS, ROUTE_RESERVATION_GRACE_HOURS,
-    ROUTE_STOP_SECONDS, WEIGHT_REFERENCE_KG,
+    ROUTE_SKIP_REASONS, ROUTE_STOP_SECONDS, WEIGHT_REFERENCE_KG,
 } from "../../utils/constants.js";
 
 const DUPLICATE_KEY = 11000;
@@ -25,6 +25,16 @@ export class RouteError extends Error {
         this.status = status;
         this.details = details;
     }
+}
+
+// The reason a driver gave for skipping a stop: one of ROUTE_SKIP_REASONS, or
+// undefined when none was given.
+export function skipReasonOf(reason) {
+    if (reason === undefined || reason === null || reason === '') return undefined;
+    if (!ROUTE_SKIP_REASONS.includes(reason)) {
+        throw new RouteError(400, `The skip reason must be one of: ${ROUTE_SKIP_REASONS.join(', ')}.`);
+    }
+    return reason;
 }
 
 // Read per call: process.env holds .env's values only once the server has started.

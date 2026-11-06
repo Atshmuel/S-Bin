@@ -310,6 +310,8 @@ export const OPEN_ROUTE_STATUSES = Object.freeze(['planned', 'driving']);
 export const ROUTE_TYPES = Object.freeze(['collection', 'maintenance']);
 export const ROUTE_SOURCES = Object.freeze(['manual', 'auto']);
 export const ROUTE_STOP_STATUSES = Object.freeze(['planned', 'done', 'skipped']);
+// Why a driver skipped a stop (the driver picks one; older apps send none).
+export const ROUTE_SKIP_REASONS = Object.freeze(['already_empty', 'no_access', 'blocked', 'other']);
 // Bins another plan reserved in the same moment: the plan is made again
 // without them, at most this many times.
 export const ROUTE_PLAN_ATTEMPTS = 3;
