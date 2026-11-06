@@ -735,7 +735,8 @@
             "contradicted": "Contradicted",
             "problemDays": "Days with a problem",
             "rate": "Fills"
-          }
+          },
+          "skippedReasons": "Skipped reasons"
         },
         "weekdays": {
           "title": "Emptyings by weekday",
@@ -1949,6 +1950,16 @@
       "period": "Period",
       "confirm": "Export",
       "failed": "Could not export the logs"
+    },
+    "exportCsv": {
+      "button": "Export CSV",
+      "failed": "Could not export the file",
+      "included": "This card is included in the Excel file of the Export Excel button at the top of the page",
+      "analyticsButton": "Export CSV",
+      "day": "Day",
+      "excel": "Export Excel",
+      "drivers": "Drivers",
+      "perDay": "Per day"
     }
   },
   "toasts": {

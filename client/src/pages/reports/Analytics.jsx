@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next"
 import { formatDate } from "@/utils/helpers"
 import OrganizationSelect from "@/components/OrganizationSelect"
 import RangeSelect from "@/components/analytics/RangeSelect"
+import ExportAnalyticsButton from "@/components/analytics/ExportAnalyticsButton"
 import { AnalyticsRangeContext } from "@/hooks/analytics/useAnalyticsRange"
 import { DEFAULT_ANALYTICS_RANGE_DAYS } from "@/utils/constants"
 import { useMe } from "@/hooks/users/auth/useMe"
@@ -68,7 +69,10 @@ function Analytics() {
         <div className="flex flex-col gap-6">
             {/* One period for every card that covers one; the others show the fleet as it is now. */}
             <div className="grid grid-cols-2 items-center gap-3 sm:flex sm:flex-wrap sm:justify-end">
-                <span className="col-span-2 text-sm text-muted-foreground">{t("pages.analytics.rangeHint")}</span>
+                <div className="col-span-2 flex items-center justify-between gap-3 sm:contents">
+                    <span className="text-sm text-muted-foreground">{t("pages.analytics.rangeHint")}</span>
+                    <ExportAnalyticsButton />
+                </div>
                 <RangeSelect value={range} onChange={setRange} className={isOwner ? "w-full sm:w-[160px]" : "w-full sm:w-[160px] col-span-2"} />
                 {isOwner && <OrganizationSelect className="w-full sm:w-56" />}
             </div>

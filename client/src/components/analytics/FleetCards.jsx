@@ -14,6 +14,7 @@ import { useThresholds } from "@/hooks/useThresholds"
 import { formatDate } from "@/utils/helpers"
 import { formatMoney } from "@/utils/money"
 import { routeDuration } from "@/utils/routes"
+import ExportMark from "./ExportMark"
 import SectionCard, { Muted } from "./SectionCard"
 
 // The analytics page's sections. Each makes its own request, once it scrolls
@@ -33,6 +34,16 @@ function RangeTag() {
     const { t } = useTranslation()
     const range = useAnalyticsRange()
     return <span className="shrink-0 text-xs text-muted-foreground">{t("pages.binDetails.areaChart.lastDays", { count: range })}</span>
+}
+
+// The top right of a card that follows the page's period and is in the page's CSV export.
+function PeriodActions() {
+    return (
+        <div className="flex items-center gap-2">
+            <ExportMark />
+            <RangeTag />
+        </div>
+    )
 }
 
 function useDateFormats() {
@@ -158,7 +169,7 @@ export function WeekdaysCard() {
     return (
         <SectionCard ref={ref} title={t("pages.analytics.sections.weekdays.title")}
             description={t("pages.analytics.sections.weekdays.description")}
-            action={<RangeTag />}
+            action={<PeriodActions />}
             isLoading={isLoading} error={error}>
             <ChartContainer config={config} className={CHART_CLASS}>
                 <ComposedChart data={weekdays}>
@@ -188,7 +199,7 @@ export function CollectionsTrendCard() {
             description={data && data.total > 0
                 ? t("pages.analytics.sections.collections.summary", { count: data.total, percent: data.avgFullnessBefore ?? "-" })
                 : t("pages.analytics.sections.collections.description")}
-            action={<RangeTag />}
+            action={<PeriodActions />}
             isLoading={isLoading} error={error}>
             <DailyChart data={data?.daily} config={config}>
                 <YAxis yAxisId="count" allowDecimals={false} hide />
@@ -208,7 +219,7 @@ export function WasteCard() {
             description={data?.weighedCollections > 0
                 ? t("pages.analytics.sections.waste.summary", { kg: data.totalKg })
                 : t("pages.analytics.sections.waste.description")}
-            action={<RangeTag />}
+            action={<PeriodActions />}
             isLoading={isLoading} error={error}>
             <DailyChart data={data?.daily} config={{ kg: { label: t("pages.analytics.sections.waste.kg"), color: "var(--chart-3)" } }}>
                 <YAxis allowDecimals={false} hide />
@@ -308,7 +319,7 @@ export function HealthCausesCard() {
     return (
         <SectionCard ref={ref} title={t("pages.analytics.sections.healthCauses.title")}
             description={t("pages.analytics.sections.healthCauses.description")}
-            action={<RangeTag />}
+            action={<PeriodActions />}
             isLoading={isLoading} error={error}>
             <DailyChart data={data?.daily} config={config}>
                 <YAxis allowDecimals={false} hide />
@@ -336,7 +347,7 @@ export function RoutesCard({ className }) {
             description={data && data.routes > 0
                 ? t("pages.analytics.sections.routes.summary", { count: data.finished, routes: data.routes })
                 : t("pages.analytics.sections.routes.description")}
-            action={<RangeTag />}
+            action={<PeriodActions />}
             isLoading={isLoading} error={error}>
             {data && (
                 <div className="flex flex-col gap-6">
@@ -403,7 +414,7 @@ export function ProblemBinsCard({ className }) {
         .join(" · ")
     return (
         <SectionCard ref={ref} className={className} title={text("title")} description={text("description")}
-            action={<RangeTag />}
+            action={<PeriodActions />}
             isLoading={isLoading} error={error}>
             {data && (data.bins.length > 0 ? (
                 // Scrolls inside the card, header kept, so the list never pushes the charts below it away.
@@ -462,7 +473,7 @@ export function CostsCard({ className }) {
             description={data?.saved?.money != null
                 ? t("pages.analytics.sections.costs.summary", { saved: money(data.saved.money), net: money(data.saved.net) })
                 : t("pages.analytics.sections.costs.description")}
-            action={<RangeTag />}
+            action={<PeriodActions />}
             isLoading={isLoading} error={error}>
             {data && (
                 <div className="flex flex-col gap-6">

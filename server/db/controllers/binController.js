@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 import { binModel, organizationModel } from '../models/models.js'
 import { appendFilter, BINS_ONLY_FILTER, healthRank, listSortStages, scopeToOrganization } from '../../utils/helpers.js'
 import { FULLNESS_EXPRESSION } from '../../utils/analytics.js'
+import { csvRow, startCsv } from '../../utils/csv.js'
 import { isLngLat } from '../../utils/geo.js'
 import { getNextReportSchedule } from '../../utils/deviceSchedule.js'
 import {
@@ -123,6 +124,54 @@ export async function getAllUserBins(req, res) {
 
         res.status(200).json({ binsData, total })
     } catch (error) {
+        res.status(500).json({ message: error?.message || error })
+    }
+}
+
+// The devices as a CSV file: those the bins page lists (its search, an owner's
+// organization), by name, all of them, written as they are read. Locations come
+// as latitude and longitude (stored [lng, lat]); the MAC address stays out.
+const BIN_EXPORT_COLUMNS = Object.freeze([
+    ['bin', bin => bin.binName],
+    ['role', bin => bin.kind === 'gateway' ? 'gateway' : bin.status?.connection?.via === 'mesh' ? 'mesh_bin' : 'gateway_bin'],
+    ['organization', (bin, orgNames) => orgNames.get(String(bin.ownerId))],
+    ['latitude', bin => bin.location?.coordinates?.[1]],
+    ['longitude', bin => bin.location?.coordinates?.[0]],
+    ['fill_percent', bin => bin.kind === 'gateway' || bin.status?.levelValid === false ? null : bin.status?.level],
+    ['weight_kg', bin => bin.kind === 'gateway' ? null : bin.status?.weight],
+    ['battery_percent', bin => bin.status?.battery],
+    ['health', bin => bin.status?.health],
+    ['faults', bin => bin.status?.faults?.map(fault => fault.code).join(' ')],
+    ['issues', bin => bin.status?.issues?.map(issue => issue.type).join(' ')],
+    ['firmware', bin => bin.status?.firmwareVersion],
+    ['connection', bin => bin.status?.connection?.via],
+    ['hops', bin => bin.status?.connection?.hops],
+    ['rssi_dbm', bin => bin.status?.connection?.rssi],
+    ['last_report_utc', bin => bin.status?.updatedAt],
+    ['last_service_utc', bin => bin.maintenance?.lastServiceAt],
+    ['next_service_utc', bin => bin.maintenance?.nextServiceAt],
+]);
+
+export async function exportBins(req, res) {
+    try {
+        const query = scopeToOrganization({}, req.user)
+        if (req.query.search) query.binName = { $regex: req.query.search, $options: 'i' };
+        const orgs = await organizationModel.find({}, { name: 1 }).lean();
+        const orgNames = new Map(orgs.map(org => [String(org._id), org.name]));
+
+        startCsv(res, 'bins', BIN_EXPORT_COLUMNS.map(([header]) => header));
+        const cursor = binModel.find(query, {
+            binName: 1, kind: 1, ownerId: 1, location: 1, maintenance: 1,
+            'status.level': 1, 'status.levelValid': 1, 'status.weight': 1, 'status.battery': 1, 'status.health': 1,
+            'status.faults': 1, 'status.issues': 1, 'status.firmwareVersion': 1, 'status.connection': 1, 'status.updatedAt': 1,
+        }).sort({ binName: 1, _id: 1 }).lean().cursor();
+        for await (const bin of cursor) {
+            res.write(csvRow(BIN_EXPORT_COLUMNS.map(([, valueOf]) => valueOf(bin, orgNames))));
+        }
+        res.end();
+    } catch (error) {
+        // Part of the file may be sent already; then the connection is all there is to end.
+        if (res.headersSent) return res.destroy(error);
         res.status(500).json({ message: error?.message || error })
     }
 }

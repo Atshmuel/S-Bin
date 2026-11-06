@@ -3,7 +3,7 @@ import { appendFilter, healthRank, listSortStages, receivedAtOf, scopeToOrganiza
 import { binLogModel, binModel, deviceDiagnosticModel } from '../models/models.js'
 import { verifyBinOwner } from '../service/sharedService.js';
 import { ANALYTICS_RANGES_DAYS, DAY_MS, DEFAULT_PAGE_SIZE, DEFAULT_RANGE_DAYS, EXPORT_BATCH_SIZE, ROLES } from "../../utils/constants.js";
-import { csvRow } from '../../utils/csv.js';
+import { csvRow, startCsv } from '../../utils/csv.js';
 
 // The logs page's sortable columns (see listSortStages). The plain fields have
 // indexes, so a page is read in order; the ranks are computed per log.
@@ -178,12 +178,7 @@ export async function exportLogs(req, res) {
         const days = ANALYTICS_RANGES_DAYS.includes(Number(req.query.days)) ? Number(req.query.days) : DEFAULT_RANGE_DAYS;
         filter.createdAt = { $gte: new Date(Date.now() - days * DAY_MS) };
 
-        res.set({
-            'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Disposition': `attachment; filename="logs-${new Date().toISOString().slice(0, 10)}.csv"`,
-        });
-        // The byte order mark makes Excel read the names as UTF-8 (Hebrew).
-        res.write('\uFEFF' + csvRow(LOG_EXPORT_COLUMNS.map(([header]) => header)));
+        startCsv(res, 'logs', LOG_EXPORT_COLUMNS.map(([header]) => header));
         const cursor = binLogModel.aggregate([
             { $match: filter },
             // Newest first, read off the time index: no other order, so no sort of the whole set.

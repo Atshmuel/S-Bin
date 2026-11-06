@@ -754,7 +754,8 @@
             "contradicted": "נסתרו",
             "problemDays": "ימים עם בעיה",
             "rate": "קצב מילוי"
-          }
+          },
+          "skippedReasons": "סיבות הדילוג"
         },
         "weekdays": {
           "title": "ריקונים לפי יום בשבוע",
@@ -1972,6 +1973,16 @@
       "period": "תקופה",
       "confirm": "ייצוא",
       "failed": "לא ניתן לייצא את הלוגים"
+    },
+    "exportCsv": {
+      "button": "ייצוא ל-CSV",
+      "failed": "לא ניתן לייצא את הקובץ",
+      "included": "הכרטיס הזה נכלל בקובץ ה-Excel של כפתור \"ייצוא ל-Excel\" בראש העמוד",
+      "analyticsButton": "ייצוא ל-CSV",
+      "day": "יום",
+      "excel": "ייצוא ל-Excel",
+      "drivers": "נהגים",
+      "perDay": "לפי יום"
     }
   },
   "toasts": {

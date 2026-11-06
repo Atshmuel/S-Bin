@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authToken, authRole } from "../middlewares/authMiddleware.js";
 import { selectOrganization, validateBodyFields, validateParamExist, validateRequestBodyBinIds } from "../middlewares/validationMiddleware.js";
-import { deleteBin, getAllUserBins, getBin, getBinsInUserRadius, getMapBins, getMapExtent, deleteBinsBatch, updateBinMaintenance, removeBinConfigViaMAC, updateBinName } from "../db/controllers/binController.js";
+import { deleteBin, exportBins, getAllUserBins, getBin, getBinsInUserRadius, getMapBins, getMapExtent, deleteBinsBatch, updateBinMaintenance, removeBinConfigViaMAC, updateBinName } from "../db/controllers/binController.js";
 import { cancelDeviceInstruction, enqueueDeviceInstruction, listDeviceInstructions } from "../db/controllers/deviceInstructionController.js";
 import { createOrganizationJoinCode, getMeshSettings, rotateOrganizationMeshKey, updateMeshSettings } from "../db/controllers/organizationController.js";
 import { getBinAnalytics } from "../db/controllers/analyticsController.js";
@@ -14,6 +14,7 @@ binRouter.use(authToken) //demends jwt for all requests
 
 //getters
 binRouter.get('/all', selectOrganization, getAllUserBins) //all user bins in db (an owner's ?org= narrows it)
+binRouter.get('/export', selectOrganization, exportBins) //the bins page's list (its search) as a CSV file
 binRouter.get('/map', getMapBins) //the devices in a map view (?south&west&north&east), marker fields only
 binRouter.get('/map/extent', selectOrganization, getMapExtent) //the box around all the user's devices (an owner's ?org= narrows it)
 // Organization settings: owners read every organization's, anyone else their

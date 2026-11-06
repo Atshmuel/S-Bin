@@ -18,6 +18,7 @@ import { useMe } from "@/hooks/users/auth/useMe";
 import { toLatLng } from "@/utils/geo";
 import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
 import OrganizationSelect from "@/components/OrganizationSelect";
+import ExportBinsButton from "@/components/bins/ExportBinsButton";
 import { useSelectedOrg } from "@/hooks/organizations/useSelectedOrg";
 
 function BinsList() {
@@ -251,7 +252,10 @@ function BinsList() {
 
     return (
         <div className="flex flex-col gap-4 sm:p-10">
-            <OrganizationSelect />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <OrganizationSelect />
+                <ExportBinsButton search={searchTerm} org={selectedOrgId ?? undefined} />
+            </div>
             <DataTable columns={columns} data={allBins ?? []} isLoading={isLoadingBins} error={binsError} title={t('pages.binsList.title')} manualPagination={true} manualFiltering={true} pageCount={pageCount} pagination={pagination} onPaginationChange={setPagination}
                 onSearchChange={handleSearchChange} manualSorting={true} onSortChange={handleSortChange} ActionButton={allBins?.length && binIds?.length ? ActionButton : null} />
         </div>

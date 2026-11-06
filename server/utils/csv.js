@@ -10,3 +10,13 @@ export function csvField(value) {
 export function csvRow(values) {
     return `${values.map(csvField).join(',')}\r\n`;
 }
+
+// Starts a CSV download on the response: its headers, the file name and the first
+// row. The byte order mark makes Excel read the names as UTF-8 (Hebrew).
+export function startCsv(res, name, headers) {
+    res.set({
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${name}-${new Date().toISOString().slice(0, 10)}.csv"`,
+    });
+    res.write('\uFEFF' + csvRow(headers));
+}

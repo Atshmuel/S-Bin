@@ -1,4 +1,5 @@
-import { LOGS_EP, SERVER_URL } from "@/utils/constants";
+import { LOGS_EP } from "@/utils/constants";
+import { downloadFromServer } from "@/utils/download";
 import { request } from "./request";
 
 // `binId` narrows the list to one bin's logs (its page); `org` an owner's organization.
@@ -14,18 +15,8 @@ export function getLog({ id, withBin }) {
 
 // The logs of the list shown (same search, bin and organization, newest first) for
 // the last `days`, saved as a CSV file by the browser.
-export async function downloadLogs({ days, search = "", binId = null, org = null }) {
-    const params = new URLSearchParams({ days, search });
-    if (binId) params.set("binId", binId);
-    if (org) params.set("org", org);
-    const res = await fetch(`${SERVER_URL}/${LOGS_EP}/export?${params}`, { credentials: "include" });
-    if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message || "Request failed.");
-    }
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(await res.blob());
-    link.download = res.headers.get("Content-Disposition")?.match(/filename="(.+?)"/)?.[1] ?? "logs.csv";
-    link.click();
-    URL.revokeObjectURL(link.href);
+export function downloadLogs({ days, search = "", binId = null, org = null }) {
+    return downloadFromServer(`${LOGS_EP}/export`, {
+        days, search, ...(binId ? { binId } : {}), ...(org ? { org } : {}),
+    });
 }

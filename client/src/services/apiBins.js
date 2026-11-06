@@ -1,5 +1,6 @@
 import { BINS_EP } from "@/utils/constants";
 import { toLngLat } from "@/utils/geo";
+import { downloadFromServer } from "@/utils/download";
 import { request } from "./request";
 
 //get bins
@@ -7,6 +8,11 @@ export function getAllUserBins(page = 1, limit = 10, search = "", sort = null, o
     const order = sort ? `&sort=${sort.sort}&order=${sort.order}` : "";
     const orgParam = org ? `&org=${org}` : "";
     return request(`${BINS_EP}/all?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}${order}${orgParam}`);
+}
+
+// The bins list (its search, an owner's organization) saved as a CSV file by the browser.
+export function downloadBins({ search = "", org = null }) {
+    return downloadFromServer(`${BINS_EP}/export`, { search, ...(org ? { org } : {}) });
 }
 
 // A map view: { total, bins } (marker fields only), or for a crowded view
