@@ -1,7 +1,7 @@
 import mongoose from 'mongoose'
 import { binLogModel, binModel, deviceDiagnosticModel, organizationModel, routeModel, userModel } from '../models/models.js'
 import { UNKNOWN_VERSION, VERSION_PATTERN, compareVersions, newestVersion, organizationsLevel, versionsLevel } from '../../utils/firmware.js'
-import { READINGS_FILTER, WITH_PROBLEMS_FILTER, readingsByBin } from '../service/readingsService.js'
+import { READINGS_FILTER, WITH_PROBLEMS_FILTER, batteryTrendsByBin, readingsByBin } from '../service/readingsService.js'
 import { describeFaults } from '../../utils/faults.js'
 import { BINS_ONLY_FILTER, receivedAtOf, scopeToOrganization } from '../../utils/helpers.js'
 import { getOrgDeviceSettingsShared, intervalsByOrg } from '../service/sharedService.js'
@@ -62,11 +62,19 @@ function scopedBins(user, filter, projection) {
     return binModel.find(scopeToOrganization(filter, user), projection).lean();
 }
 
+// The logs' filter for every device in the user's scope (scopedBins with no
+// filter): none for an owner looking at every organization, whose scope is
+// all logs, rather than thousands of ids for the database to look up one by
+// one. A deleted device's logs go with it (deleteDeviceData).
+function scopedLogsFilter(user, bins) {
+    return user.role === ROLES.OWNER && !user.selectedOrg ? {} : { binId: { $in: bins.map(bin => bin._id) } };
+}
+
 // When each device first reported (kept logs only), in one query: one query
 // per device does not scale to thousands of them.
-async function firstReportTimes(binIds) {
+async function firstReportTimes(binIds, logsFilter = { binId: { $in: binIds } }) {
     const firsts = await binLogModel.aggregate([
-        { $match: { binId: { $in: binIds }, ...READINGS_FILTER } },
+        { $match: { ...logsFilter, ...READINGS_FILTER } },
         { $group: { _id: '$binId', at: { $min: '$createdAt' } } },
     ]);
     const byId = new Map(firsts.map(first => [String(first._id), first.at]));
@@ -270,15 +278,35 @@ function bucketCounts(values, buckets) {
     }));
 }
 
+// Counted in the database: a few rows back instead of every bin. The fullness
+// is rounded as fullnessPercent() rounds it (half up; $round is half to even).
 async function fullnessDistribution(user) {
-    const bins = await scopedBins(user, { ...BINS_ONLY_FILTER },
-        { 'status.level': 1, 'status.levelValid': 1, 'status.weight': 1, 'status.scale': 1 });
-    const values = bins.map(bin => fullnessPercent(
-        bin.status?.levelValid === false ? null : bin.status?.level,
-        bin.status?.scale === 'ok' ? bin.status?.weight : null,
-    ));
-    const known = values.filter(value => value !== null);
-    return { buckets: bucketCounts(known, FULLNESS_BUCKETS), unknown: values.length - known.length };
+    const rounded = { $floor: { $add: ['$fullness', 0.5] } };
+    const groups = await binModel.aggregate([
+        { $match: scopeToOrganization({ ...BINS_ONLY_FILTER }, user) },
+        { $project: { fullness: FULLNESS_EXPRESSION } },
+        {
+            $group: {
+                _id: {
+                    $switch: {
+                        branches: [
+                            { case: { $eq: ['$fullness', null] }, then: 'unknown' },
+                            ...FULLNESS_BUCKETS.map(([from, to], index) => ({
+                                case: { $and: [{ $gte: [rounded, from] }, { $lt: [rounded, to] }] }, then: index,
+                            })),
+                        ],
+                        default: 'outside',
+                    },
+                },
+                count: { $sum: 1 },
+            },
+        },
+    ]);
+    const counts = new Map(groups.map(group => [group._id, group.count]));
+    return {
+        buckets: FULLNESS_BUCKETS.map(([from, to], index) => ({ from, to: Math.min(to, 100), count: counts.get(index) ?? 0 })),
+        unknown: counts.get('unknown') ?? 0,
+    };
 }
 
 // The range's days (the last `days`, ending today) in numbers across the
@@ -339,14 +367,14 @@ async function batteryOverview(user) {
         scopedBins(user, {}, { binName: 1, kind: 1, ownerId: 1, 'status.battery': 1 }),
         scopedThresholds(user),
     ]);
-    const readings = await readingsByBin(bins.map(bin => bin._id), rangeStart(BATTERY_TREND_DAYS));
+    const trends = await batteryTrendsByBin(scopedLogsFilter(user, bins), rangeStart(BATTERY_TREND_DAYS));
     const soon = bins.map(bin => ({
         _id: bin._id,
         binName: bin.binName,
         kind: bin.kind,
         battery: bin.status?.battery ?? null,
         daysLeft: batteryDaysLeft(bin.status?.battery,
-            trendPerDay(readings.get(String(bin._id)) ?? [], 'battery'), thresholdsFor(thresholds, bin.ownerId).batteryCritical),
+            trends.get(String(bin._id)) ?? null, thresholdsFor(thresholds, bin.ownerId).batteryCritical),
     }))
         .filter(bin => bin.daysLeft !== null && bin.daysLeft <= BATTERY_SOON_DAYS)
         .sort((a, b) => a.daysLeft - b.daysLeft);
@@ -362,13 +390,14 @@ async function connectivityOverview(user) {
     const start = rangeStart(days);
     const now = new Date();
     const bins = await scopedBins(user, {}, { binName: 1, kind: 1, ownerId: 1, 'status.connection': 1 });
+    const logsFilter = scopedLogsFilter(user, bins);
     const [counts, intervals, firstReports] = await Promise.all([
         binLogModel.aggregate([
-            { $match: { binId: { $in: bins.map(bin => bin._id) }, ...READINGS_FILTER, createdAt: { $gte: start } } },
+            { $match: { ...logsFilter, ...READINGS_FILTER, createdAt: { $gte: start } } },
             { $group: { _id: '$binId', count: { $sum: 1 } } },
         ]),
         intervalsByOrg(bins),
-        firstReportTimes(bins.map(bin => bin._id)),
+        firstReportTimes(bins.map(bin => bin._id), logsFilter),
     ]);
     const received = new Map(counts.map(count => [String(count._id), count.count]));
     const names = new Map(bins.map(bin => [String(bin._id), bin.binName]));
@@ -422,7 +451,7 @@ async function healthCausesOverview(user, { days, timeZone }) {
     // Counted per day, fault codes and message in the database: there are few
     // distinct ones, so this returns far fewer rows than there are logs.
     const groups = await binLogModel.aggregate([
-        { $match: { binId: { $in: bins.map(bin => bin._id) }, ...READINGS_FILTER, createdAt: { $gte: start }, ...WITH_PROBLEMS_FILTER } },
+        { $match: { ...scopedLogsFilter(user, bins), ...READINGS_FILTER, createdAt: { $gte: start }, ...WITH_PROBLEMS_FILTER } },
         {
             $group: {
                 _id: {
@@ -552,7 +581,7 @@ async function problemBinsOverview(user, { days, timeZone }) {
             },
         ]),
         binLogModel.aggregate([
-            { $match: { binId: { $in: ids }, ...READINGS_FILTER, createdAt: { $gte: start }, ...WITH_PROBLEMS_FILTER } },
+            { $match: { ...scopedLogsFilter(user, bins), ...READINGS_FILTER, createdAt: { $gte: start }, ...WITH_PROBLEMS_FILTER } },
             { $group: { _id: { binId: '$binId', day: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: timeZone } } } } },
             { $group: { _id: '$_id.binId', days: { $sum: 1 } } },
         ]),

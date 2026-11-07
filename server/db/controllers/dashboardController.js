@@ -8,7 +8,7 @@ import { lastReportAt, offlineCauses } from '../../utils/offline.js'
 import { batteryLevel, fullnessLevel, thresholdsFor } from '../../utils/thresholds.js'
 import { thresholdsByOrganization } from '../service/thresholdService.js'
 import {
-    ATTENTION_LIST_LIMIT, OFFLINE_AFTER_MISSED_REPORTS,
+    ATTENTION_LIST_LIMIT, DEVICES_SHARE_MS, OFFLINE_AFTER_MISSED_REPORTS,
     RECENT_LOGS_LIMIT, HOUR_MS, RECENT_LOGS_HOURS, ROLES, ROUTE_CONTRADICTION_RECENT_HOURS,
 } from '../../utils/constants.js'
 
@@ -23,11 +23,33 @@ function isGatewayBin(bin) {
     return bin.kind === 'gateway';
 }
 
+// One read of a fleet's devices, shared for DEVICES_SHARE_MS by the requests
+// that ask for it (the dashboard's four sections, the AI overview): every
+// device of an organization is several MB from the database. Callers only
+// read the list. Keyed by what it depends on: the fleet and whether the user
+// is an owner (owners also get the devices' own problems).
+const sharedDevices = new Map();
+
+export function devicesWithReasons(user) {
+    const fleet = user.role === ROLES.OWNER ? `owner:${user.selectedOrg ?? 'all'}` : `org:${user.org}`;
+    const now = Date.now();
+    for (const [key, entry] of sharedDevices) {
+        if (now - entry.at >= DEVICES_SHARE_MS) sharedDevices.delete(key);
+    }
+    const shared = sharedDevices.get(fleet);
+    if (shared) return shared.devices;
+    const devices = readDevicesWithReasons(user);
+    sharedDevices.set(fleet, { devices, at: now });
+    // A failed read is not kept: the next request tries again.
+    devices.catch(() => sharedDevices.delete(fleet));
+    return devices;
+}
+
 // The user's devices, each with why it needs attention (possibly none); an
 // offline device also says why it is: { cause: 'self' } or, for a leaf behind
 // a silent gateway, { cause: 'gateway', gatewayId, gatewayName } (or, behind a
 // silent relay leaf, { cause: 'relay', relayId, relayName }).
-export async function devicesWithReasons(user) {
+async function readDevicesWithReasons(user) {
     const now = Date.now();
     const devices = await binModel.find(scopeToOrganization({}, user), BIN_PUBLIC_PROJECTION).lean();
     const intervals = await intervalsByOrg(devices);

@@ -1,4 +1,5 @@
 import { binLogModel } from "../models/models.js";
+import { DAY_MS, MIN_TREND_POINTS, MIN_TREND_SPAN_MS } from "../../utils/constants.js";
 
 // A device's sensor readings (its reports), as the analytics and the route
 // planner read them.
@@ -27,4 +28,33 @@ export async function readingsByBin(binIds, since, until = null) {
         weight: reading.weight ?? null,
         battery: reading.battery ?? null,
     }))]));
+}
+
+// Each device's battery trend in % per day since `since`, for the devices the
+// logs filter selects: trendPerDay()'s least-squares slope (null with too few
+// readings or too short a span), from sums the database adds up per device,
+// so one row per device comes back instead of every reading.
+export async function batteryTrendsByBin(logsFilter, since) {
+    const days = { $divide: [{ $subtract: ['$createdAt', since] }, DAY_MS] };
+    const groups = await binLogModel.aggregate([
+        { $match: { ...logsFilter, ...READINGS_FILTER, createdAt: { $gte: since }, battery: { $type: 'number' } } },
+        { $project: { binId: 1, createdAt: 1, battery: 1, x: days } },
+        {
+            $group: {
+                _id: '$binId',
+                n: { $sum: 1 },
+                sumX: { $sum: '$x' },
+                sumY: { $sum: '$battery' },
+                sumXY: { $sum: { $multiply: ['$x', '$battery'] } },
+                sumXX: { $sum: { $multiply: ['$x', '$x'] } },
+                first: { $min: '$createdAt' },
+                last: { $max: '$createdAt' },
+            },
+        },
+    ]);
+    return new Map(groups.map(({ _id, n, sumX, sumY, sumXY, sumXX, first, last }) => {
+        if (n < MIN_TREND_POINTS || last - first < MIN_TREND_SPAN_MS) return [String(_id), null];
+        const variance = sumXX - sumX * sumX / n;
+        return [String(_id), variance > 0 ? (sumXY - sumX * sumY / n) / variance : null];
+    }));
 }

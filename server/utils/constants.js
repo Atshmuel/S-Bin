@@ -361,6 +361,9 @@ export const AI_BRIEFING_DAYS = 7;
 // How long the server keeps an AI overview for the same fleet and language,
 // so reloading the page does not call the model again.
 export const AI_OVERVIEW_CACHE_MS = 15 * MINUTE_MS;
+// How long the dashboard's sections share one read of the user's devices
+// (the page asks for four of them at once, each needing every device).
+export const DEVICES_SHARE_MS = 30 * SECOND_MS;
 export const AI_BRIEFING_DEVICE_LIMIT = 60;
 
 // Accounts and sessions.
