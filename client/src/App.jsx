@@ -11,37 +11,42 @@ import ProtectedRoute from './components/ProtectedRoute'
 import { DarkModeProvider } from './contexts/DarkModeProvider';
 import { Toaster } from './components/ui/sonner';
 import Login from '../src/pages/auth/Login'
-import Dashboard from './pages/dashboard/Dashboard';
-import Analytics from './pages/reports/Analytics';
-import Firmware from './pages/firmware/Firmware';
-import BinsList from './pages/bins/BinsList';
-import BinMap from './pages/bins/BinMap';
-import BinDetails from './pages/bins/BinDetails';
-import AllLogs from './pages/binLogs/AllLogs';
-import BinLog from './pages/binLogs/BinLog';
-import UserProfile from './pages/users/UserProfile';
-import AccountProfile from './pages/users/AccountProfile';
-import UsersList from './pages/users/UsersList';
-import Signup from './pages/auth/Signup';
-import ForgotPassword from './pages/auth/ForgotPassword';
-import SupportPage from './pages/generals/SupportPage';
 import ErrorPage from './pages/generals/ErrorPage';
 import { MapProvider } from './contexts/MapProvider';
-import AddBin from './pages/bins/AddBin';
 import { BreadcrumbProvider } from './contexts/BreadcrumbProvider';
-import AccountVerify from './pages/auth/AccountVerify';
 import { AppSideProvider } from './contexts/AppSideProvider';
 import { OrganizationScopeProvider } from './contexts/OrganizationScopeProvider';
-import Organizations from './pages/organizations/Organizations';
-import OrganizationSettings from './pages/organizations/OrganizationSettings';
-import RoutesList from './pages/routes/RoutesList';
-import RouteDetails from './pages/routes/RouteDetails';
-import RouteDrive from './pages/routes/RouteDrive';
 import HomeRedirect from './components/HomeRedirect';
+import PageLoading from './components/PageLoading';
 import { LANDING_HOST } from './utils/constants';
 
 // The landing page is its own host (see LANDING_HOST); its code is not part of the app's.
 const Landing = lazy(() => import('./pages/landing/Landing'));
+
+// Each page's code loads when it is first opened (the map, the charts and the
+// route planner are most of the app), so the login page and the first page
+// come up without the rest. AppLayout shows a spinner in the page's place.
+const Dashboard = lazy(() => import('./pages/dashboard/Dashboard'));
+const Analytics = lazy(() => import('./pages/reports/Analytics'));
+const Firmware = lazy(() => import('./pages/firmware/Firmware'));
+const BinsList = lazy(() => import('./pages/bins/BinsList'));
+const BinMap = lazy(() => import('./pages/bins/BinMap'));
+const BinDetails = lazy(() => import('./pages/bins/BinDetails'));
+const AllLogs = lazy(() => import('./pages/binLogs/AllLogs'));
+const BinLog = lazy(() => import('./pages/binLogs/BinLog'));
+const UserProfile = lazy(() => import('./pages/users/UserProfile'));
+const AccountProfile = lazy(() => import('./pages/users/AccountProfile'));
+const UsersList = lazy(() => import('./pages/users/UsersList'));
+const Signup = lazy(() => import('./pages/auth/Signup'));
+const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
+const SupportPage = lazy(() => import('./pages/generals/SupportPage'));
+const AddBin = lazy(() => import('./pages/bins/AddBin'));
+const AccountVerify = lazy(() => import('./pages/auth/AccountVerify'));
+const Organizations = lazy(() => import('./pages/organizations/Organizations'));
+const OrganizationSettings = lazy(() => import('./pages/organizations/OrganizationSettings'));
+const RoutesList = lazy(() => import('./pages/routes/RoutesList'));
+const RouteDetails = lazy(() => import('./pages/routes/RouteDetails'));
+const RouteDrive = lazy(() => import('./pages/routes/RouteDrive'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 0 } },
@@ -68,6 +73,7 @@ function App() {
       <DarkModeProvider>
         <BrowserRouter>
           <BreadcrumbProvider>
+            <Suspense fallback={<PageLoading />}>
             <Routes>
               <Route
                 element={
@@ -133,6 +139,7 @@ function App() {
               <Route path="support" element={<SupportPage />} />
               <Route path="*" element={<ErrorPage />} />
             </Routes>
+            </Suspense>
           </BreadcrumbProvider>
         </BrowserRouter>
       </DarkModeProvider>
