@@ -16,8 +16,13 @@ import {
 // each, /api/overviews/<section>). Bins go out without their device key or
 // MAC address: the key is what a device authenticates with.
 
-// Diagnostics stay out too: every device is read here, and none of them is shown.
-const BIN_PUBLIC_PROJECTION = Object.freeze({ deviceKey: 0, macAddress: 0, 'status.recentMeshMessageIds': 0, 'status.diagnostics': 0 });
+// Diagnostics stay out too: every device is read here, and none of them is
+// shown. So do the fields no section or the AI overview reads (about a sixth
+// of the bytes).
+const BIN_PUBLIC_PROJECTION = Object.freeze({
+    deviceKey: 0, macAddress: 0, __v: 0, 'status.recentMeshMessageIds': 0, 'status.diagnostics': 0,
+    'status.offlineAlertSentAt': 0, 'status.fillRateAt': 0, 'status.lastAwakeSeconds': 0,
+});
 
 function isGatewayBin(bin) {
     return bin.kind === 'gateway';
