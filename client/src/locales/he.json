@@ -206,33 +206,22 @@
   "viewBin": "הצג פח",
   "columns": "עמודות",
   "sidebar": {
-    "managment": {
-      "title": "ניהול",
-      "subtitles": {
-        "bins": "פחים",
-        "users": "משתמשים",
-        "organizations": "ארגונים",
-        "organization": "הארגון",
-        "routes": "מסלולים"
-      },
-      "items": {
-        "binList": "רשימת פחים",
-        "routeList": "רשימת מסלולים",
-        "addBin": "הוסף פח",
-        "map": "מפה",
-        "logs": "תיעודים",
-        "userList": "רשימת משתמשים",
-        "organizationList": "רשימת ארגונים",
-        "orgSettings": "הגדרות הארגון"
-      }
+    "groups": {
+      "overview": "סקירה",
+      "field": "עבודת שטח",
+      "management": "ניהול"
     },
-    "general": {
-      "title": "כללי",
-      "items": {
-        "dashboard": "לוח בקרה",
-        "analytics": "אנליטיקות",
-        "firmware": "קושחה"
-      }
+    "items": {
+      "dashboard": "לוח בקרה",
+      "analytics": "אנליטיקות",
+      "map": "מפה",
+      "bins": "פחים",
+      "routes": "מסלולים",
+      "logs": "תיעודים",
+      "users": "משתמשים",
+      "organizations": "ארגונים",
+      "organization": "הארגון",
+      "firmware": "קושחה"
     }
   },
   "mapLegend": {
@@ -573,7 +562,8 @@
         "confirmationDescription": "פעולה זו תמחק לצמיתות את הפחים המסומנים, לאשר על ידי הקלדת 'מחק' בשדה למטה, פעולה זו אינה ניתנת לביטול.",
         "typeDelete": "כדי לאשר את המחיקה, הקלד „מחק”."
       },
-      "locateBin": "אתר את הפח על המפה"
+      "locateBin": "אתר את הפח על המפה",
+      "addBin": "הוסף פח"
     },
     "logList": {
       "title": "כל התיעודים",

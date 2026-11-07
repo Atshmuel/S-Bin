@@ -2,16 +2,18 @@
 
 import * as React from "react"
 import {
+  Building2Icon,
   ChartSplineIcon,
   CpuIcon,
+  FileTextIcon,
   LayoutDashboardIcon,
+  MapIcon,
   RouteIcon,
   Trash2Icon,
-  UserCircle2Icon,
+  UsersIcon,
 } from "lucide-react"
 
-import { NavMain } from "@/components/NavMain"
-import { NavGeneral } from "@/components/NavGeneral"
+import { NavGroup } from "@/components/NavGroup"
 import { NavAccount } from "@/components/NavAccount"
 import { AppLogo } from "@/components/AppLogo"
 import {
@@ -27,9 +29,11 @@ import { useMe } from "@/hooks/users/auth/useMe"
 import { useAppSide } from "@/hooks/useAppSide"
 import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router-dom"
-import RemoveBin from "./bins/RemoveBin"
 
-
+// The bins list, its map and its logs share /bins; each item lights for its own pages.
+const isBinsMap = (pathname) => pathname.startsWith("/bins/map")
+const isBinsLogs = (pathname) => pathname.startsWith("/bins/logs")
+const isBinsList = (pathname) => pathname.startsWith("/bins") && !isBinsMap(pathname) && !isBinsLogs(pathname)
 
 export function AppSidebar({
   ...props
@@ -44,99 +48,41 @@ export function AppSidebar({
   React.useEffect(() => { setOpenMobile(false) }, [pathname, setOpenMobile])
 
   const isExpanded = state === 'expanded'
+  const item = (key, url, icon, isActive) => ({ name: t(`sidebar.items.${key}`), url, icon, isActive })
+  const routes = item("routes", "/routes", RouteIcon)
 
-  const data = {
-    listItems: [
+  // Grouped by what the page is for: the fleet at a glance, the work in the
+  // field, then running the organization (owners and admins). A driver works
+  // only with their routes.
+  const groups = isDriver
+    ? [{ key: "field", items: [routes] }]
+    : [
       {
-        title: t("sidebar.managment.subtitles.bins"),
-        url: "/bins",
-        icon: Trash2Icon,
-        isActive: true,
+        key: "overview",
         items: [
-          {
-            title: t("sidebar.managment.items.addBin"),
-            url: "add",
-          },
-          {
-            title: t("sidebar.managment.items.binList"),
-            url: "",
-          },
-          {
-            title: t("sidebar.managment.items.map"),
-            url: "map",
-          },
-          {
-            title: t("sidebar.managment.items.logs"),
-            url: "logs",
-          },
+          item("dashboard", "/dashboard", LayoutDashboardIcon),
+          item("analytics", "/analytics", ChartSplineIcon),
         ],
       },
       {
-        title: t("sidebar.managment.subtitles.users"),
-        url: "/users",
-        icon: UserCircle2Icon,
-        isAdminAndAbove: true,
+        key: "field",
         items: [
-          {
-            title: t("sidebar.managment.items.userList"),
-            url: "",
-          },
+          item("map", "/bins/map", MapIcon, isBinsMap),
+          item("bins", "/bins", Trash2Icon, isBinsList),
+          ...(isAdmin ? [routes] : []),
+          item("logs", "/bins/logs", FileTextIcon, isBinsLogs),
         ],
       },
-      // Owners manage every organization; an admin gets their own organization's settings.
-      {
-        title: t(isOwner ? "sidebar.managment.subtitles.organizations" : "sidebar.managment.subtitles.organization"),
-        url: "/organizations",
-        icon: UserCircle2Icon,
-        isAdminAndAbove: true,
+      ...(isAdmin ? [{
+        key: "management",
         items: [
-          {
-            title: t(isOwner ? "sidebar.managment.items.organizationList" : "sidebar.managment.items.orgSettings"),
-            url: "",
-          },
+          item("users", "/users", UsersIcon),
+          // Owners manage every organization; an admin gets their own organization's settings.
+          item(isOwner ? "organizations" : "organization", "/organizations", Building2Icon),
+          item("firmware", "/firmware", CpuIcon),
         ],
-      },
-    ],
-    general: [
-      {
-        name: t("sidebar.general.items.dashboard"),
-        url: "/dashboard",
-        icon: LayoutDashboardIcon,
-      },
-      {
-        name: t("sidebar.general.items.analytics"),
-        url: "/analytics",
-        icon: ChartSplineIcon,
-      },
-      // Which firmware the devices run: owners and admins, who run the updates.
-      {
-        name: t("sidebar.general.items.firmware"),
-        url: "/firmware",
-        icon: CpuIcon,
-        isAdminAndAbove: true,
-      },
-    ],
-  }
-  // Routes: owners and admins plan and assign them, drivers drive theirs; a
-  // driver sees nothing else.
-  const routesGroup = {
-    title: t("sidebar.managment.subtitles.routes"),
-    url: "/routes",
-    icon: RouteIcon,
-    isActive: true,
-    items: [
-      { title: t("sidebar.managment.items.routeList"), url: "" },
-    ],
-  }
-  if (isDriver) {
-    data.listItems = [routesGroup]
-    data.general = []
-  } else if (isAdmin) {
-    data.listItems.splice(1, 0, routesGroup)
-  }
-
-
-
+      }] : []),
+    ]
 
   return (
     <Sidebar side={opSide} collapsible="icon" {...props}>
@@ -144,11 +90,9 @@ export function AppSidebar({
         <AppLogo />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.listItems} />
-        {data.general.length > 0 && <NavGeneral general={data.general} />}
+        {groups.map(group => <NavGroup key={group.key} label={t(`sidebar.groups.${group.key}`)} items={group.items} />)}
       </SidebarContent>
       <SidebarFooter>
-        {isOwner ? <RemoveBin isExpanded={isExpanded} /> : null}
         {isAdmin ? <NewEntitySheet isExpanded={isExpanded} /> : null}
         <NavAccount isRight={isRight} account={{ ...me, avater: '/avatars/shadcn.jpg' }} />
       </SidebarFooter>

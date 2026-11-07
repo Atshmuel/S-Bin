@@ -109,33 +109,22 @@
   "viewBin": "View Bin",
   "columns": "Columns",
   "sidebar": {
-    "managment": {
-      "title": "Management",
-      "subtitles": {
-        "bins": "Bins",
-        "users": "Users",
-        "organizations": "Organizations",
-        "organization": "Organization",
-        "routes": "Routes"
-      },
-      "items": {
-        "binList": "List of Bins",
-        "routeList": "List of Routes",
-        "addBin": "Add Bin",
-        "map": "Map",
-        "logs": "Logs",
-        "userList": "List of Users",
-        "organizationList": "Organizations List",
-        "orgSettings": "Organization Settings"
-      }
+    "groups": {
+      "overview": "Overview",
+      "field": "Field work",
+      "management": "Management"
     },
-    "general": {
-      "title": "General",
-      "items": {
-        "dashboard": "Dashboard",
-        "analytics": "Analytics",
-        "firmware": "Firmware"
-      }
+    "items": {
+      "dashboard": "Dashboard",
+      "analytics": "Analytics",
+      "map": "Map",
+      "bins": "Bins",
+      "routes": "Routes",
+      "logs": "Logs",
+      "users": "Users",
+      "organizations": "Organizations",
+      "organization": "Organization",
+      "firmware": "Firmware"
     }
   },
   "newEntity": {
@@ -561,7 +550,8 @@
         "typeDelete": "To confirm deletion, type 'Delete'."
       },
       "locateBin": "Locate the bin on the map",
-      "description": "Manage your bins by viewing, editing, or deleting them."
+      "description": "Manage your bins by viewing, editing, or deleting them.",
+      "addBin": "Add Bin"
     },
     "logList": {
       "title": "All Logs",

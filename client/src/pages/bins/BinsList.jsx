@@ -3,7 +3,7 @@ import DataTable from "../../components/DataTable"
 import { Link, useSearchParams } from "react-router-dom";
 import HealthBadge from "@/components/bins/HealthBadge";
 import Battery from "../../components/bins/Battary";
-import { LinkIcon, MapPin, Trash } from "lucide-react";
+import { LinkIcon, MapPin, Plus, Trash } from "lucide-react";
 import { isGateway } from "@/utils/binHelpers";
 import { getDeviceRole } from "@/utils/deviceRoles";
 import DeviceRoleBadge from "@/components/bins/DeviceRoleBadge";
@@ -19,11 +19,12 @@ import { toLatLng } from "@/utils/geo";
 import ConfirmDeleteDialog from "@/components/ConfirmDeleteDialog";
 import OrganizationSelect from "@/components/OrganizationSelect";
 import ExportBinsButton from "@/components/bins/ExportBinsButton";
+import RemoveBin from "@/components/bins/RemoveBin";
 import { useSelectedOrg } from "@/hooks/organizations/useSelectedOrg";
 
 function BinsList() {
     const { t } = useTranslation();
-    const { isAdmin } = useMe();
+    const { isAdmin, isOwner } = useMe();
     const { selectedOrgId } = useSelectedOrg();
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -254,7 +255,14 @@ function BinsList() {
         <div className="flex flex-col gap-4 sm:p-10">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <OrganizationSelect />
-                <ExportBinsButton search={searchTerm} org={selectedOrgId ?? undefined} />
+                {/* Adding a device, an owner's removal by MAC address and the export: the list's own actions. */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button asChild size="sm">
+                        <Link to="/bins/add"><Plus data-icon="inline-start" />{t("pages.binsList.addBin")}</Link>
+                    </Button>
+                    {isOwner && <RemoveBin isExpanded />}
+                    <ExportBinsButton search={searchTerm} org={selectedOrgId ?? undefined} />
+                </div>
             </div>
             <DataTable columns={columns} data={allBins ?? []} isLoading={isLoadingBins} error={binsError} title={t('pages.binsList.title')} manualPagination={true} manualFiltering={true} pageCount={pageCount} pagination={pagination} onPaginationChange={setPagination}
                 onSearchChange={handleSearchChange} manualSorting={true} onSortChange={handleSortChange} ActionButton={allBins?.length && binIds?.length ? ActionButton : null} />
