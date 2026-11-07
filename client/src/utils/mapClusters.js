@@ -61,3 +61,15 @@ export function createRouteEndIcon(label) {
         iconAnchor: [0, 12],
     })
 }
+
+// Where the user is ("my location"): a blue dot in a white ring with a soft
+// halo, drawn here rather than Leaflet's default pin, whose image the build
+// does not carry.
+export function createUserLocationIcon() {
+    return L.divIcon({
+        html: `<div style="width:18px;height:18px;border-radius:9999px;background:${ROUTE_COLOR};border:3px solid #fff;box-shadow:0 0 0 6px rgba(37,99,235,.25),0 1px 4px rgba(0,0,0,.45)"></div>`,
+        className: "",
+        iconSize: [18, 18],
+        popupAnchor: [0, -10],
+    })
+}

@@ -107,28 +107,31 @@ function Analytics() {
                                         <Label
                                             content={({ viewBox }) => {
                                                 if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                                                    // Two texts, the number always left to right: as one
+                                                    // right-to-left text in Hebrew, the browser split
+                                                    // "5,003" around its comma and put the word between.
                                                     return (
-                                                        <text
-                                                            x={viewBox.cx}
-                                                            y={viewBox.cy}
-                                                            textAnchor="middle"
-                                                            dominantBaseline="middle"
-                                                        >
-                                                            <tspan
+                                                        <g>
+                                                            <text
                                                                 x={viewBox.cx}
                                                                 y={viewBox.cy}
+                                                                textAnchor="middle"
+                                                                dominantBaseline="middle"
+                                                                direction="ltr"
                                                                 className="fill-foreground text-2xl font-bold"
                                                             >
                                                                 {binsCount.total.toLocaleString()}
-                                                            </tspan>
-                                                            <tspan
+                                                            </text>
+                                                            <text
                                                                 x={viewBox.cx}
-                                                                y={(viewBox.cy || 0) + 20}
+                                                                y={(viewBox.cy || 0) + 22}
+                                                                textAnchor="middle"
+                                                                dominantBaseline="middle"
                                                                 className="fill-muted-foreground"
                                                             >
                                                                 {t("bins")}
-                                                            </tspan>
-                                                        </text>
+                                                            </text>
+                                                        </g>
                                                     )
                                                 }
                                             }}

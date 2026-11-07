@@ -10,10 +10,12 @@ import { Separator } from "@/components/ui/separator"
 import { useAppSide } from "@/hooks/useAppSide"
 import { useMapSettings } from "@/hooks/useMapSettings"
 import { USER_MARKER_MS } from "@/utils/constants"
+import { createUserLocationIcon } from "@/utils/mapClusters"
 import MapDisplayOptions from "./MapDisplayOptions"
 import MapSearchForm from "./MapSearchForm"
 
 const LOCATION_ERRORS = { 1: "locationDenied", 2: "locationUnavailable", 3: "locationTimeout" }
+const USER_LOCATION_ICON = createUserLocationIcon()
 
 // The map's actions behind a button in a corner: finding bins (where the page
 // allows it) with the display options; MapKeyPanel explains the colors. One
@@ -85,7 +87,7 @@ function MapControls({ legendForm = false }) {
             </div>
 
             {userMarker && (
-                <Marker position={userMarker}>
+                <Marker position={userMarker} icon={USER_LOCATION_ICON}>
                     <Popup>{t("mapLegend.locations.youAreHere")}</Popup>
                 </Marker>
             )}
