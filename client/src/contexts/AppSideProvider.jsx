@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppSideContext } from "./appSideContext";
+import { browserLanguage, loadLanguage } from "@/i18n";
 
 function AppSideProvider({ children }) {
     const { i18n } = useTranslation()
@@ -9,7 +10,7 @@ function AppSideProvider({ children }) {
     const [opSide, setOpSide] = useState("left");
 
     const toggleSide = (lang) => {
-        i18n.changeLanguage(lang)
+        loadLanguage(lang)
         setIsRight(!isRight);
         setSide(isRight ? "left" : "right");
         setOpSide(isRight ? "right" : "left");
@@ -18,10 +19,7 @@ function AppSideProvider({ children }) {
 
     // Set initial side based on browser language
     useEffect(() => {
-        const browserLang =
-            navigator.languages?.[0] || navigator.language || "en";
-
-        const lang = browserLang.split("-")[0];
+        const lang = browserLanguage();
 
         if (lang === "he") {
             toggleSide(lang)
