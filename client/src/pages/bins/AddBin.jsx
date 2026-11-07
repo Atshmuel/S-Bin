@@ -1,7 +1,5 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAppSide } from "@/hooks/useAppSide"
@@ -9,8 +7,7 @@ import { useOrganizations } from "@/hooks/organizations/useOrganizations"
 import { useQuery } from "@tanstack/react-query"
 import { createJoinCode, getMeshSettings } from "@/services/apiMeshSettings"
 import { useMe } from "@/hooks/users/auth/useMe"
-import { useRemainingHeight } from "@/hooks/useRemainingHeight"
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, CircleCheck, Copy, Send, Info, KeyRound, ListChecks, LocateFixed, Smartphone } from "lucide-react"
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleCheck, Copy, Send, Info, KeyRound, ListChecks, LocateFixed, Smartphone } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
@@ -92,21 +89,18 @@ function BinLocation({ value, onChange, copied, onCopy }) {
     )
 }
 
-// One value the device's setup page asks for, with a copy button.
+// One value the device's setup page asks for; a tap anywhere on it copies it.
 function CopyField({ label, value, placeholder, copied, onCopy, copyLabel }) {
     return (
         <div className="space-y-1.5">
             <p className="font-medium text-sm">{label}:</p>
-            <div className="flex items-center gap-2">
-                {value ? (
-                    <code className="flex-1 bg-background p-3 rounded border text-sm font-mono tracking-wide break-all" dir="ltr">{value}</code>
-                ) : (
-                    <p className="flex-1 bg-background p-3 rounded border text-sm text-muted-foreground">{placeholder}</p>
-                )}
-                <Button variant="outline" size="icon" onClick={onCopy} className="shrink-0" disabled={!value} aria-label={copyLabel}>
-                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                </Button>
-            </div>
+            <button type="button" onClick={onCopy} disabled={!value} aria-label={copyLabel}
+                className="flex w-full items-center gap-2 rounded border bg-background p-3 text-start transition-colors hover:bg-accent disabled:cursor-default disabled:hover:bg-background">
+                {value
+                    ? <code className="flex-1 text-sm font-mono tracking-wide break-all" dir="ltr">{value}</code>
+                    : <span className="flex-1 text-sm text-muted-foreground">{placeholder}</span>}
+                {value && (copied ? <Check className="h-4 w-4 shrink-0 text-green-500" /> : <Copy className="h-4 w-4 shrink-0 text-muted-foreground" />)}
+            </button>
         </div>
     )
 }
@@ -135,43 +129,53 @@ function Note({ title, children, warning = false }) {
     )
 }
 
-// A step of the wizard: its number, title and what to do, with Back / Next.
-// Every step has the same height (what is left of the screen): a long one
-// scrolls inside, so the buttons stay in one place from step to step.
-function Step({ number, icon: Icon, name, height, children, onBack, onNext, nextLabel, footer }) {
+// The wizard's progress: one bar per step, those done and the current one lit.
+function StepProgress({ current }) {
+    return (
+        <div className="flex gap-1.5" aria-hidden>
+            {Array.from({ length: TOTAL_STEPS }, (_, index) => (
+                <div key={index} className={`h-1.5 flex-1 rounded-full ${index < current ? "bg-primary" : "bg-muted"}`} />
+            ))}
+        </div>
+    )
+}
+
+// A step of the wizard: its progress, title and what to do, with Back / Next.
+// The page scrolls, not a box inside it; on a phone the buttons stay in a bar
+// at the bottom of the screen, on a wider screen they end the card.
+function Step({ number, icon: Icon, name, children, onBack, onNext, nextLabel, footer }) {
     const { t } = useTranslation()
     const { isRight } = useAppSide()
     const NextIcon = isRight ? ArrowRight : ArrowLeft
     const PrevIcon = isRight ? ArrowLeft : ArrowRight
     return (
-        <CarouselItem style={height ? { height } : undefined}>
-            <Card className="flex h-full flex-col">
-                <CardHeader>
-                    <div className="text-xs text-muted-foreground">{t(key("progress"), { current: number, total: TOTAL_STEPS })}</div>
-                    <CardTitle className="flex items-center gap-2">
-                        <Icon className="h-5 w-5" />
-                        {t(key(`${name}.title`))}
-                    </CardTitle>
-                    <CardDescription>{t(key(`${name}.description`))}</CardDescription>
-                </CardHeader>
-                <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain">{children}</CardContent>
-                <CardFooter className={onBack ? "flex justify-between gap-2" : "flex justify-end"}>
-                    {onBack && (
-                        <Button variant="outline" onClick={onBack}>
-                            <PrevIcon className="h-4 w-4" />
-                            {t(key("navigation.back"))}
-                        </Button>
-                    )}
-                    {onNext && (
-                        <Button onClick={onNext}>
-                            {nextLabel}
-                            <NextIcon className="h-4 w-4" />
-                        </Button>
-                    )}
-                    {footer}
-                </CardFooter>
-            </Card>
-        </CarouselItem>
+        <section className="space-y-4 sm:rounded-xl sm:border sm:bg-card sm:p-6 sm:shadow-sm">
+            <div className="space-y-2">
+                <StepProgress current={number} />
+                <div className="text-xs text-muted-foreground">{t(key("progress"), { current: number, total: TOTAL_STEPS })}</div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold">
+                    <Icon className="h-5 w-5" />
+                    {t(key(`${name}.title`))}
+                </h2>
+                <p className="text-sm text-muted-foreground">{t(key(`${name}.description`))}</p>
+            </div>
+            <div className="space-y-4">{children}</div>
+            <div className={`fixed inset-x-0 bottom-0 z-20 flex gap-2 border-t bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:pt-2 sm:backdrop-blur-none ${onBack ? "justify-between" : "justify-end"}`}>
+                {onBack && (
+                    <Button variant="outline" onClick={onBack}>
+                        <PrevIcon className="h-4 w-4" />
+                        {t(key("navigation.back"))}
+                    </Button>
+                )}
+                {onNext && (
+                    <Button onClick={onNext}>
+                        {nextLabel}
+                        <NextIcon className="h-4 w-4" />
+                    </Button>
+                )}
+                {footer}
+            </div>
+        </section>
     )
 }
 
@@ -185,7 +189,8 @@ function AddBin() {
     const { isRight } = useAppSide()
     const { t } = useTranslation()
 
-    const [api, setApi] = useState(null)
+    const [step, setStep] = useState(1)
+    const [showIntro, setShowIntro] = useState(false)
     const [copied, setCopied] = useState(null)
     const [selectedOrgId, setSelectedOrgId] = useState(null)
     const [binLocation, setBinLocation] = useState(null)
@@ -239,114 +244,118 @@ function AddBin() {
                 copied={copied === "joinCode"} onCopy={() => copy("joinCode", joinCodeText)} copyLabel={t(key("fields.copyJoinCode"))} />
         </div>
     )
-    const [panelRef, panelHeight] = useRemainingHeight({ minHeight: 420 })
-    const next = () => api?.scrollNext()
-    const back = () => api?.scrollPrev()
+    // A new step starts at its top.
+    const goTo = (number) => {
+        setStep(number)
+        window.scrollTo({ top: 0, behavior: "smooth" })
+    }
+    const next = () => goTo(Math.min(step + 1, TOTAL_STEPS))
+    const back = () => goTo(Math.max(step - 1, 1))
 
     if (!ownerId && !isOwner) {
         return <ErrorPage code={t(key("noOrganization.code"))} description={t(key("noOrganization.description"))}
             buttonText={t(key("noOrganization.buttonText"))} navTo="/" />
     }
     return (
-        <div className="flex justify-center items-center">
-            <div className="w-full max-w-[350px] sm:max-w-[450px] md:max-w-[550px] lg:max-w-[700px]">
-                <Alert className="mb-3">
-                    <Info className="h-4 w-4" />
-                    <AlertTitle className="text-sm font-medium">{t(key("intro.title"))}</AlertTitle>
-                    <AlertDescription className="text-sm">{t(key("intro.description"))}</AlertDescription>
-                </Alert>
-                <Carousel ref={panelRef} allowDrag={false} setApi={setApi}>
-                    <CarouselContent isRight={isRight} className="max-w-[370px] sm:max-w-[470px] md:max-w-[570px] lg:max-w-[720px] p-1">
-                        <Step number={1} height={panelHeight} icon={ListChecks} name="stepOne" onNext={next} nextLabel={t(key("navigation.ready"))}>
-                            {isOwner && (
-                                <div className="space-y-2">
-                                    <p className="font-medium text-sm">{t(key("stepOne.organizationLabel"))}:</p>
-                                    {isLoadingOrgs ? <Skeleton className="w-full h-10" /> : (
-                                        <Select isRight={isRight} onValueChange={setSelectedOrgId} value={selectedOrgId ?? ""}>
-                                            <SelectTrigger isRight={isRight} className="bg-background">
-                                                <SelectValue placeholder={t(key("stepOne.organizationPlaceholder"))} />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectGroup>
-                                                    <SelectLabel isRight={isRight}>
-                                                        {orgsError ? t(key("stepOne.organizationError")) : t(key("stepOne.organizationLabel"))}
-                                                    </SelectLabel>
-                                                    <div className="max-h-52 overflow-y-auto">
-                                                        {!orgsError && organizations?.map(org => (
-                                                            <SelectItem isRight={isRight} className="truncate" key={org._id} value={org._id}>{org.name}</SelectItem>
-                                                        ))}
-                                                    </div>
-                                                </SelectGroup>
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                </div>
-                            )}
-                            <BinLocation value={binLocation} onChange={setBinLocation}
-                                copied={copied === "location"} onCopy={() => copy("location", binLocation?.text)} />
-                            <div className="bg-muted p-4 rounded-lg space-y-3">
-                                <p className="font-medium text-sm">{t(key("stepOne.checklistTitle"))}</p>
-                                <Checklist items={["empty", "power", "sky", "phone", "scale"].map(item => t(key(`stepOne.checklist.${item}`)))} />
-                            </div>
-                        </Step>
-
-                        <Step number={2} height={panelHeight} icon={Smartphone} name="stepTwo" onBack={back} onNext={next} nextLabel={t(key("navigation.onSetupPage"))}>
-                            <div className="bg-muted p-4 rounded-lg">
-                                <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-                                    {["powerOn", "joinNetwork", "openPage"].map(item => <li key={item}>{t(key(`stepTwo.steps.${item}`))}</li>)}
-                                </ol>
-                            </div>
-                            <Note title={t(key("stepTwo.noInternetTitle"))}>{t(key("stepTwo.noInternetNote"))}</Note>
-                            <Note title={t(key("stepTwo.noNetworkTitle"))}>{t(key("stepTwo.noNetworkNote"))}</Note>
-                        </Step>
-
-                        <Step number={3} height={panelHeight} icon={KeyRound} name="stepThree" onBack={back} onNext={next} nextLabel={t(key("navigation.saved"))}>
-                            {setupLink && (
-                                <div className="bg-primary/10 p-4 rounded-lg space-y-2">
-                                    <Button asChild className="w-full">
-                                        <a href={setupLink} target="_blank" rel="noreferrer">
-                                            <Send className="h-4 w-4" />
-                                            {t(key("stepThree.send"))}
-                                        </a>
-                                    </Button>
-                                    <p className="text-xs text-muted-foreground">{t(key("stepThree.sendHint"))}</p>
-                                    <p className={binLocation ? "text-xs text-muted-foreground" : "text-xs text-destructive"}>
-                                        {binLocation
-                                            ? <>{t(key("stepThree.withLocation"))} <span dir="ltr">{binLocation.text} (±{binLocation.accuracy} m)</span></>
-                                            : t(key("stepThree.withoutLocation"))}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">{t(key("stepThree.steps.restart"))}</p>
-                                </div>
-                            )}
-                            <p className="text-sm text-muted-foreground">{t(key("stepThree.steps.enter"))}</p>
-                            {fields}
-                            <p className="text-xs text-muted-foreground">{t(key("stepThree.fieldsHint"))}</p>
-                            <p className="text-xs text-muted-foreground">{t(key("stepThree.joinHint"))}</p>
-                        </Step>
-
-                        <Step number={4} height={panelHeight} icon={CircleCheck} name="stepFour" onBack={back}
-                            footer={<Button asChild><Link to="/bins">{t(key("navigation.toBins"))}</Link></Button>}>
-                            <div className="bg-primary/10 p-4 rounded-lg space-y-3">
-                                <p className="font-medium text-primary text-sm">{t(key("stepFour.whatHappens"))}</p>
-                                <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-                                    {["cellular", "gps", "measure", "register"].map(item => <li key={item}>{t(key(`stepFour.steps.${item}`))}</li>)}
-                                </ol>
-                            </div>
-                            <Note title={t(key("stepFour.timeTitle"))}>{t(key("stepFour.timeNote"))}</Note>
-                            <Note title={t(key("stepFour.calibrationTitle"))}>
-                                <ul className="list-disc list-inside space-y-1">
-                                    {["how", "notEmpty", "redo", "scale"].map(item => <li key={item}>{t(key(`stepFour.calibration.${item}`))}</li>)}
-                                </ul>
-                            </Note>
-                            <Note warning title={t(key("stepFour.troubleshootTitle"))}>
-                                <ul className="list-disc list-inside space-y-1">
-                                    {["notListed", "noFix", "wrongDetails"].map(item => <li key={item}>{t(key(`stepFour.troubleshoot.${item}`))}</li>)}
-                                </ul>
-                            </Note>
-                        </Step>
-                    </CarouselContent>
-                </Carousel>
+        // Room at the bottom on a phone for the bar with the step's buttons.
+        <div className="mx-auto w-full max-w-2xl space-y-4 pb-24 sm:pb-0">
+            {/* How it works, folded: on a phone it would push the step below the screen. */}
+            <div className="rounded-lg border">
+                <button type="button" onClick={() => setShowIntro(open => !open)} aria-expanded={showIntro}
+                    className="flex w-full items-center gap-2 p-3 text-start text-sm font-medium">
+                    <Info className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">{t(key("intro.title"))}</span>
+                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showIntro ? "rotate-180" : ""}`} />
+                </button>
+                {showIntro && <p className="px-3 pb-3 text-sm text-muted-foreground">{t(key("intro.description"))}</p>}
             </div>
+            {step === 1 && <Step number={1} icon={ListChecks} name="stepOne" onNext={next} nextLabel={t(key("navigation.ready"))}>
+                {isOwner && (
+                    <div className="space-y-2">
+                        <p className="font-medium text-sm">{t(key("stepOne.organizationLabel"))}:</p>
+                        {isLoadingOrgs ? <Skeleton className="w-full h-10" /> : (
+                            <Select isRight={isRight} onValueChange={setSelectedOrgId} value={selectedOrgId ?? ""}>
+                                <SelectTrigger isRight={isRight} className="bg-background">
+                                    <SelectValue placeholder={t(key("stepOne.organizationPlaceholder"))} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        <SelectLabel isRight={isRight}>
+                                            {orgsError ? t(key("stepOne.organizationError")) : t(key("stepOne.organizationLabel"))}
+                                        </SelectLabel>
+                                        <div className="max-h-52 overflow-y-auto">
+                                            {!orgsError && organizations?.map(org => (
+                                                <SelectItem isRight={isRight} className="truncate" key={org._id} value={org._id}>{org.name}</SelectItem>
+                                            ))}
+                                        </div>
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                        )}
+                    </div>
+                )}
+                <BinLocation value={binLocation} onChange={setBinLocation}
+                    copied={copied === "location"} onCopy={() => copy("location", binLocation?.text)} />
+                <div className="bg-muted p-4 rounded-lg space-y-3">
+                    <p className="font-medium text-sm">{t(key("stepOne.checklistTitle"))}</p>
+                    <Checklist items={["empty", "power", "sky", "phone", "scale"].map(item => t(key(`stepOne.checklist.${item}`)))} />
+                </div>
+            </Step>}
+
+            {step === 2 && <Step number={2} icon={Smartphone} name="stepTwo" onBack={back} onNext={next} nextLabel={t(key("navigation.onSetupPage"))}>
+                <div className="bg-muted p-4 rounded-lg">
+                    <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                        {["powerOn", "joinNetwork", "openPage"].map(item => <li key={item}>{t(key(`stepTwo.steps.${item}`))}</li>)}
+                    </ol>
+                </div>
+                <Note title={t(key("stepTwo.noInternetTitle"))}>{t(key("stepTwo.noInternetNote"))}</Note>
+                <Note title={t(key("stepTwo.noNetworkTitle"))}>{t(key("stepTwo.noNetworkNote"))}</Note>
+            </Step>}
+
+            {step === 3 && <Step number={3} icon={KeyRound} name="stepThree" onBack={back} onNext={next} nextLabel={t(key("navigation.saved"))}>
+                {setupLink && (
+                    <div className="bg-primary/10 p-4 rounded-lg space-y-2">
+                        <Button asChild className="w-full">
+                            <a href={setupLink} target="_blank" rel="noreferrer">
+                                <Send className="h-4 w-4" />
+                                {t(key("stepThree.send"))}
+                            </a>
+                        </Button>
+                        <p className="text-xs text-muted-foreground">{t(key("stepThree.sendHint"))}</p>
+                        <p className={binLocation ? "text-xs text-muted-foreground" : "text-xs text-destructive"}>
+                            {binLocation
+                                ? <>{t(key("stepThree.withLocation"))} <span dir="ltr">{binLocation.text} (±{binLocation.accuracy} m)</span></>
+                                : t(key("stepThree.withoutLocation"))}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{t(key("stepThree.steps.restart"))}</p>
+                    </div>
+                )}
+                <p className="text-sm text-muted-foreground">{t(key("stepThree.steps.enter"))}</p>
+                {fields}
+                <p className="text-xs text-muted-foreground">{t(key("stepThree.fieldsHint"))}</p>
+                <p className="text-xs text-muted-foreground">{t(key("stepThree.joinHint"))}</p>
+            </Step>}
+
+            {step === 4 && <Step number={4} icon={CircleCheck} name="stepFour" onBack={back}
+                footer={<Button asChild><Link to="/bins">{t(key("navigation.toBins"))}</Link></Button>}>
+                <div className="bg-primary/10 p-4 rounded-lg space-y-3">
+                    <p className="font-medium text-primary text-sm">{t(key("stepFour.whatHappens"))}</p>
+                    <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                        {["cellular", "gps", "measure", "register"].map(item => <li key={item}>{t(key(`stepFour.steps.${item}`))}</li>)}
+                    </ol>
+                </div>
+                <Note title={t(key("stepFour.timeTitle"))}>{t(key("stepFour.timeNote"))}</Note>
+                <Note title={t(key("stepFour.calibrationTitle"))}>
+                    <ul className="list-disc list-inside space-y-1">
+                        {["how", "notEmpty", "redo", "scale"].map(item => <li key={item}>{t(key(`stepFour.calibration.${item}`))}</li>)}
+                    </ul>
+                </Note>
+                <Note warning title={t(key("stepFour.troubleshootTitle"))}>
+                    <ul className="list-disc list-inside space-y-1">
+                        {["notListed", "noFix", "wrongDetails"].map(item => <li key={item}>{t(key(`stepFour.troubleshoot.${item}`))}</li>)}
+                    </ul>
+                </Note>
+            </Step>}
         </div>
     )
 }
