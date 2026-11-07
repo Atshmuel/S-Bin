@@ -4,19 +4,22 @@ import { Minus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+// A code reads left to right in Hebrew too, so the first digit (and the
+// rounded corner) stays on the left. Left to right also keeps the library's
+// hidden input, widened for a password manager's icon, inside the card: in
+// right to left it grew past the card's edge, and iOS scrolled the
+// forgot-password carousel to show it on a tap.
 const InputOTP = React.forwardRef(({ className, containerClassName, ...props }, ref) => (
   <OTPInput
     ref={ref}
-    containerClassName={cn("flex items-center gap-2 has-[:disabled]:opacity-50", containerClassName)}
+    containerClassName={cn("flex items-center gap-2 [direction:ltr] has-[:disabled]:opacity-50", containerClassName)}
     className={cn("disabled:cursor-not-allowed", className)}
     {...props} />
 ))
 InputOTP.displayName = "InputOTP"
 
-// A code reads left to right in Hebrew too, so the first digit (and the
-// rounded corner) stays on the left.
 const InputOTPGroup = React.forwardRef(({ className, ...props }, ref) => (
-  <div ref={ref} dir="ltr" className={cn("flex items-center", className)} {...props} />
+  <div ref={ref} className={cn("flex items-center", className)} {...props} />
 ))
 InputOTPGroup.displayName = "InputOTPGroup"
 
