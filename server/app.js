@@ -44,6 +44,16 @@ app.use(cookieParser());
 // from the nginx container.
 app.set("trust proxy", 1);
 app.use("/api", apiLimiter);
+// What the browser blocked, or would have blocked, under the sites'
+// Content-Security-Policy (client/nginx.conf), into the log.
+app.post("/api/csp-report", express.json({ type: ["application/csp-report", "application/reports+json", "application/json"], limit: "16kb" }), (req, res) => {
+    for (const entry of [].concat(req.body ?? [])) {
+        const report = entry?.["csp-report"] ?? entry?.body ?? entry;
+        console.warn("[csp]", report?.["violated-directive"] ?? report?.effectiveDirective,
+            report?.["blocked-uri"] ?? report?.blockedURL, "on", report?.["document-uri"] ?? report?.documentURL);
+    }
+    res.sendStatus(204);
+});
 // In production a 500 says only that something failed: the message a handler
 // put in it (often the database's own error) goes to the log instead.
 if (process.env.NODE_ENV === 'production') {
