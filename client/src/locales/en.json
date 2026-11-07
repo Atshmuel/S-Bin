@@ -2004,5 +2004,10 @@
     "placeholder": "Type your note here..."
   },
   "technician": "Technician",
-  "firmware": "Firmware"
+  "firmware": "Firmware",
+  "errorBoundary": {
+    "title": "This page could not load",
+    "description": "A new version of the app may have just come out. Reloading brings it in.",
+    "reload": "Reload"
+  }
 }
