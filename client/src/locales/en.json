@@ -133,8 +133,6 @@
     "createNewOrganization": "Create New Organization",
     "createNewUserSubtitle": "Fill in the details to create a new user",
     "createNewOrganizationSubtitle": "Fill in the details to create a new organization",
-    "fillInputs": "Fill in the fields below to create the entity",
-    "submitSheet": "Submit for saving changes",
     "userInputs": {
       "fields": {
         "fullName": {

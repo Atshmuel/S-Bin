@@ -87,26 +87,19 @@ function NewEntitySheet({ isExpanded }) {
             <SheetTrigger asChild>
                 <Button size={isExpanded ? 'default' : 'icon'}>{isExpanded ? <div className={`flex  items-center ${isRight ? '' : 'flex-row-reverse'} gap-2`}><LucidePlus /> <span>{t("newEntity.title")}</span></div> : <LucidePlus />}</Button>
             </SheetTrigger>
-            <SheetContent side={side}>
+            {/* The whole width on a phone; only the fields scroll, the buttons stay at the bottom. */}
+            <SheetContent side={side} className="w-full sm:max-w-md">
                 <SheetHeader>
                     <SheetTitle className={'text-sm  md:text-lg'}>{isUserCreation ? t("newEntity.createNewUser") : t("newEntity.createNewOrganization")}</SheetTitle>
                     <SheetDescription> {isUserCreation ? t("newEntity.createNewUserSubtitle") : t("newEntity.createNewOrganizationSubtitle")}</SheetDescription>
-                    <ul className={`text-muted-foreground text-sm pt-1 ${isRight ? "ml-5" : "mr-5"}  list-disc space-y-1`}>
-                        <li>{t("newEntity.fillInputs")}</li>
-                        <li>{t("newEntity.submitSheet")}</li>
-                    </ul>
                     <ToggleView />
                 </SheetHeader>
-                <form id="create-entity-form" className="space-y-4 h-[100%] overflow-auto relative" onSubmit={isUserCreation ? onSubmitUser : onSubmitOrg} >
-                    <div className="px-4 relative">
-                        <div className=" md:max-h-[68vh]  md:h-[68vh] overflow-auto">
-                            {isUserCreation ?
-                                <UserInputs form={userForm} isCreating={isCreating} />
-                                :
-                                <OrgInputs form={orgForm} isCreating={isCreatingOrg} />
-                            }
-                        </div>
-                    </div>
+                <form id="create-entity-form" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-2" onSubmit={isUserCreation ? onSubmitUser : onSubmitOrg} >
+                    {isUserCreation ?
+                        <UserInputs form={userForm} isCreating={isCreating} />
+                        :
+                        <OrgInputs form={orgForm} isCreating={isCreatingOrg} />
+                    }
                 </form>
                 <SheetFooter>
                     <Button form="create-entity-form" type="submit">

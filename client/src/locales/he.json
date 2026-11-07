@@ -101,8 +101,6 @@
     "createNewOrganization": "צור ארגון חדש",
     "createNewUserSubtitle": "מלא את הפרטים ליצירת משתמש חדש",
     "createNewOrganizationSubtitle": "מלא את הפרטים ליצירת ארגון חדש",
-    "fillInputs": "מלא את השדות",
-    "submitSheet": "שלח לשמירת השינויים",
     "userInputs": {
       "fields": {
         "fullName": {

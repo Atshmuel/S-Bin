@@ -5,7 +5,6 @@ import { Input } from "../ui/input";
 import { useState } from "react";
 import InputLabel from "../InputLabel";
 import { Eye, EyeOff } from "lucide-react";
-import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import { useMe } from "@/hooks/users/auth/useMe";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "../ui/select";
 import { useOrgManagers } from "@/hooks/users/useOrgManagers";
@@ -13,6 +12,32 @@ import { Skeleton } from "../ui/skeleton";
 import { useOrganizations } from "@/hooks/organizations/useOrganizations";
 import { useAppSide } from "@/hooks/useAppSide";
 import { useTranslation } from "react-i18next";
+
+// A field with a few fixed choices (the role, the status) as a list to pick
+// from: a row of buttons does not fit a phone, nor every language.
+function OptionSelect({ field, name, options, disabled }) {
+    const { isRight } = useAppSide()
+    const { t } = useTranslation()
+    const text = (key) => t(`newEntity.userInputs.fields.${name}.${key}`)
+    return (
+        <FormItem>
+            <Label>{text("label")}</Label>
+            <Select isRight={isRight} disabled={disabled} value={field.value} onValueChange={field.onChange}>
+                <FormControl>
+                    <SelectTrigger isRight={isRight} className="w-full">
+                        <SelectValue />
+                    </SelectTrigger>
+                </FormControl>
+                <SelectContent className="z-[1000]">
+                    {options.map(option => (
+                        <SelectItem isRight={isRight} key={option} value={option}>{text(`options.${option}`)}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+            <FormDescription>{text("description")}</FormDescription>
+        </FormItem>
+    )
+}
 
 function UserInputs({ form, isCreating }) {
     const { me, isOwner } = useMe();
@@ -123,49 +148,16 @@ function UserInputs({ form, isCreating }) {
                     name="role"
                     control={form.control}
                     render={({ field }) => (
-                        <FormItem>
-                            <Label>{t("newEntity.userInputs.fields.role.label")}</Label>
-                            <FormControl>
-                                <ToggleGroup isRight={isRight} disabled={isCreating} className="mt-3 border-[0.1px] border-primary rounded-md" type="single" value={field.value} onValueChange={(value) => {
-                                    if (value) {
-                                        field.onChange(value)
-                                    }
-                                }}>
-                                    <ToggleGroupItem className='w-full text-[10px] min-[400px]:text-sm data-[state=on]:bg-primary data-[state=on]:text-accent' value="user">{t("newEntity.userInputs.fields.role.options.user")}</ToggleGroupItem>
-                                    <ToggleGroupItem className='w-full text-[10px] min-[400px]:text-sm data-[state=on]:bg-primary data-[state=on]:text-accent' value="driver">{t("newEntity.userInputs.fields.role.options.driver")}</ToggleGroupItem>
-                                    <ToggleGroupItem className='w-full text-[10px] min-[400px]:text-sm data-[state=on]:bg-primary data-[state=on]:text-accent' value="technician">{t("newEntity.userInputs.fields.role.options.technician")}</ToggleGroupItem>
-                                    <ToggleGroupItem className='w-full text-[10px] min-[400px]:text-sm data-[state=on]:bg-primary data-[state=on]:text-accent' value="admin">{t("newEntity.userInputs.fields.role.options.admin")}</ToggleGroupItem>
-                                    {me.role === 'owner' ? <ToggleGroupItem className='w-full text-[10px] min-[400px]:text-sm data-[state=on]:bg-primary data-[state=on]:text-accent' value="owner">{t("newEntity.userInputs.fields.role.options.owner")}</ToggleGroupItem> : null}
-                                </ToggleGroup>
-                            </FormControl>
-                            <FormDescription>
-                                {t("newEntity.userInputs.fields.role.description")}
-                            </FormDescription>
-                        </FormItem>
+                        <OptionSelect field={field} name="role" disabled={isCreating}
+                            options={["user", "driver", "technician", "admin", ...(me.role === 'owner' ? ["owner"] : [])]} />
                     )}
                 />
                 <FormField
                     name="status"
                     control={form.control}
                     render={({ field }) => (
-                        <FormItem>
-                            <Label>{t("newEntity.userInputs.fields.status.label")}</Label>
-                            <FormControl>
-                                <ToggleGroup isRight={isRight} disabled={isCreating} className="mt-3 border-[0.1px] border-primary rounded-md gap-0" type="single" value={field.value} onValueChange={(value) => {
-                                    if (value) {
-                                        field.onChange(value)
-                                    }
-                                }}>
-                                    <ToggleGroupItem className='w-full text-[10px] min-[400px]:text-sm  data-[state=on]:bg-primary data-[state=on]:text-accent' value="pending">{t("newEntity.userInputs.fields.status.options.pending")}</ToggleGroupItem>
-                                    <ToggleGroupItem className='w-full text-[10px] min-[400px]:text-sm data-[state=on]:bg-primary data-[state=on]:text-accent' value="active">{t("newEntity.userInputs.fields.status.options.active")}</ToggleGroupItem>
-                                    <ToggleGroupItem className='w-full text-[10px] min-[400px]:text-sm data-[state=on]:bg-primary data-[state=on]:text-accent' value="inactive">{t("newEntity.userInputs.fields.status.options.inactive")}</ToggleGroupItem>
-                                    <ToggleGroupItem className='w-full text-[10px] min-[400px]:text-sm data-[state=on]:bg-primary data-[state=on]:text-accent' value="suspended">{t("newEntity.userInputs.fields.status.options.suspended")}</ToggleGroupItem>
-                                </ToggleGroup>
-                            </FormControl>
-                            <FormDescription>
-                                {t("newEntity.userInputs.fields.status.description")}
-                            </FormDescription>
-                        </FormItem>
+                        <OptionSelect field={field} name="status" disabled={isCreating}
+                            options={["pending", "active", "inactive", "suspended"]} />
                     )}
                 />
                 {isOwner ?
